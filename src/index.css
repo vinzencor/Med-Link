@@ -1,0 +1,245 @@
+@import url('@fontsource/outfit/400.css');
+@import url('@fontsource/outfit/500.css');
+@import url('@fontsource/outfit/600.css');
+@import url('@fontsource/outfit/700.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* LinkedIn-inspired professional color palette */
+    --background: 210 20% 98%;
+    --foreground: 213 27% 13%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 213 27% 13%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 27% 13%;
+
+    /* Primary - LinkedIn Blue */
+    --primary: 209 86% 40%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 209 86% 35%;
+
+    /* Secondary - Light blue/gray */
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 213 27% 13%;
+
+    --muted: 210 20% 94%;
+    --muted-foreground: 213 15% 45%;
+
+    /* Accent - Soft teal for healthcare */
+    --accent: 174 58% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Success - Green for applications */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning - Orange for pending */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: 209 86% 40%;
+
+    --radius: 0.75rem;
+
+    /* Custom gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(209 86% 40%), hsl(209 86% 50%));
+    --gradient-accent: linear-gradient(135deg, hsl(174 58% 45%), hsl(174 58% 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(213 27% 13%), hsl(209 86% 25%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 20% 99%));
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(213 27% 13% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(213 27% 13% / 0.08), 0 2px 4px -2px hsl(213 27% 13% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(213 27% 13% / 0.1), 0 4px 6px -4px hsl(213 27% 13% / 0.08);
+    --shadow-xl: 0 20px 25px -5px hsl(213 27% 13% / 0.1), 0 8px 10px -6px hsl(213 27% 13% / 0.08);
+    --shadow-glow: 0 0 30px hsl(209 86% 40% / 0.15);
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 213 27% 13%;
+    --sidebar-primary: 209 86% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 20% 96%;
+    --sidebar-accent-foreground: 213 27% 13%;
+    --sidebar-border: 214 20% 90%;
+    --sidebar-ring: 209 86% 40%;
+  }
+
+  .dark {
+    --background: 213 27% 8%;
+    --foreground: 210 20% 98%;
+
+    --card: 213 27% 12%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 213 27% 12%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 209 86% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 209 86% 55%;
+
+    --secondary: 213 27% 18%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 213 27% 18%;
+    --muted-foreground: 210 15% 60%;
+
+    --accent: 174 58% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 71% 50%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 213 27% 20%;
+    --input: 213 27% 20%;
+    --ring: 209 86% 50%;
+
+    --gradient-hero: linear-gradient(135deg, hsl(213 27% 5%), hsl(209 86% 15%));
+
+    --sidebar-background: 213 27% 10%;
+    --sidebar-foreground: 210 20% 98%;
+    --sidebar-primary: 209 86% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 213 27% 15%;
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-border: 213 27% 20%;
+    --sidebar-ring: 209 86% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .card-elevated {
+    @apply bg-card rounded-xl border border-border;
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s ease;
+  }
+
+  .card-elevated:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+  }
+
+  .card-interactive {
+    @apply card-elevated cursor-pointer;
+  }
+
+  .card-interactive:hover {
+    @apply border-primary/30;
+    box-shadow: var(--shadow-glow);
+  }
+
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  .btn-shadow {
+    box-shadow: var(--shadow-md);
+  }
+
+  .btn-shadow:hover {
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { 
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideInRight {
+    from { 
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from { 
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to { 
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
