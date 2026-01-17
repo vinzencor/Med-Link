@@ -225,7 +225,7 @@ export const subscriptionPlans = {
     {
       id: 'js_starter',
       name: 'Starter',
-      price: { monthly: 9.99, yearly: 99.99 },
+      price: 9.99,
       features: [
         'Apply to 5 jobs per month',
         'Basic job alerts',
@@ -238,7 +238,7 @@ export const subscriptionPlans = {
     {
       id: 'js_professional',
       name: 'Professional',
-      price: { monthly: 19.99, yearly: 199.99 },
+      price: 19.99,
       features: [
         'Apply to 30 jobs per month',
         'Priority job alerts',
@@ -252,7 +252,7 @@ export const subscriptionPlans = {
     {
       id: 'js_enterprise',
       name: 'Premium',
-      price: { monthly: 39.99, yearly: 399.99 },
+      price: 39.99,
       features: [
         'Unlimited applications',
         'Instant job alerts',
@@ -269,7 +269,7 @@ export const subscriptionPlans = {
     {
       id: 'rec_starter',
       name: 'Starter',
-      price: { monthly: 99, yearly: 999 },
+      price: 99,
       features: [
         'Post up to 5 jobs',
         'Basic applicant tracking',
@@ -282,7 +282,7 @@ export const subscriptionPlans = {
     {
       id: 'rec_professional',
       name: 'Professional',
-      price: { monthly: 249, yearly: 2499 },
+      price: 249,
       features: [
         'Post up to 20 jobs',
         'Advanced applicant tracking',
@@ -296,7 +296,7 @@ export const subscriptionPlans = {
     {
       id: 'rec_enterprise',
       name: 'Enterprise',
-      price: { monthly: 499, yearly: 4999 },
+      price: 499,
       features: [
         'Unlimited job posts',
         'Premium applicant tracking',

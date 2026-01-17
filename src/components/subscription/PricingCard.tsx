@@ -5,10 +5,9 @@ import { CheckCircle2 } from 'lucide-react';
 
 interface PricingCardProps {
   name: string;
-  price: { monthly: number; yearly: number };
+  price: number;
   features: string[];
   recommended?: boolean;
-  billingCycle: 'monthly' | 'yearly';
   onSelect: () => void;
   buttonText?: string;
 }
@@ -18,13 +17,9 @@ const PricingCard: React.FC<PricingCardProps> = ({
   price,
   features,
   recommended,
-  billingCycle,
   onSelect,
   buttonText = 'Get Started'
 }) => {
-  const currentPrice = billingCycle === 'monthly' ? price.monthly : price.yearly;
-  const monthlyEquivalent = billingCycle === 'yearly' ? price.yearly / 12 : price.monthly;
-  const savings = billingCycle === 'yearly' ? Math.round(((price.monthly * 12) - price.yearly) / (price.monthly * 12) * 100) : 0;
 
   return (
     <div className={`relative rounded-2xl p-6 transition-all duration-300 ${
@@ -41,21 +36,9 @@ const PricingCard: React.FC<PricingCardProps> = ({
       <div className="text-center mb-6">
         <h3 className="text-xl font-bold">{name}</h3>
         <div className="mt-4">
-          <span className="text-4xl font-bold">${currentPrice.toFixed(currentPrice < 100 ? 2 : 0)}</span>
-          <span className="text-muted-foreground">/{billingCycle === 'yearly' ? 'year' : 'month'}</span>
+          <span className="text-4xl font-bold">${price.toFixed(price < 100 ? 2 : 0)}</span>
+          <span className="text-muted-foreground">/month</span>
         </div>
-        {billingCycle === 'yearly' && (
-          <div className="mt-2 space-y-1">
-            <p className="text-sm text-muted-foreground">
-              ${monthlyEquivalent.toFixed(2)}/month billed annually
-            </p>
-            {savings > 0 && (
-              <Badge variant="secondary" className="bg-success/10 text-success">
-                Save {savings}%
-              </Badge>
-            )}
-          </div>
-        )}
       </div>
 
       <ul className="space-y-3 mb-6">

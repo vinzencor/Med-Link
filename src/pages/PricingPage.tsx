@@ -11,7 +11,6 @@ import PricingCard from '@/components/subscription/PricingCard';
 
 const PricingPage: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<'job_seeker' | 'recruiter'>('job_seeker');
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
   const navigate = useNavigate();
 
   const plans = selectedRole === 'recruiter' ? subscriptionPlans.recruiter : subscriptionPlans.jobSeeker;
@@ -73,24 +72,6 @@ const PricingPage: React.FC = () => {
           </TabsList>
         </Tabs>
 
-        {/* Billing Cycle Toggle */}
-        <div className="flex items-center justify-center gap-4 mb-10">
-          <Label htmlFor="billing-pricing" className={billingCycle === 'monthly' ? 'font-semibold' : 'text-muted-foreground'}>
-            Monthly
-          </Label>
-          <Switch
-            id="billing-pricing"
-            checked={billingCycle === 'yearly'}
-            onCheckedChange={(checked) => setBillingCycle(checked ? 'yearly' : 'monthly')}
-          />
-          <Label htmlFor="billing-pricing" className={billingCycle === 'yearly' ? 'font-semibold' : 'text-muted-foreground'}>
-            Yearly
-          </Label>
-          {billingCycle === 'yearly' && (
-            <Badge variant="secondary" className="bg-success/10 text-success">Save up to 20%</Badge>
-          )}
-        </div>
-
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8 mb-16">
           {plans.map((plan) => (
@@ -100,7 +81,6 @@ const PricingPage: React.FC = () => {
               price={plan.price}
               features={plan.features}
               recommended={plan.recommended}
-              billingCycle={billingCycle}
               onSelect={handleSelectPlan}
             />
           ))}
