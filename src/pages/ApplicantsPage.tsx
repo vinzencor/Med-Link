@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import Header from '@/components/layout/Header';
 import { useApp } from '@/context/AppContext';
 import { Button } from '@/components/ui/button';
@@ -17,11 +18,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { 
-  Search, 
-  FileText, 
-  Mail, 
-  Phone, 
+import {
+  Search,
+  FileText,
+  Mail,
+  Phone,
   Clock,
   MoreVertical,
   CheckCircle2,
@@ -33,21 +34,70 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 
 const ApplicantsPage: React.FC = () => {
-  const { jobs, applications, currentUser } = useApp();
+  const { currentUser } = useApp();
+  const [recruiterJobs, setRecruiterJobs] = useState<any[]>([]);
+  const [allApplications, setAllApplications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [jobFilter, setJobFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [jobFilter, setJobFilter] = useState('all');
 
-  const recruiterJobs = jobs.filter(j => j.recruiterId === currentUser?.id);
-  const allApplications = applications.filter(a => 
-    recruiterJobs.some(j => j.id === a.jobId)
-  );
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Fetch jobs for dropdown
+        const { data: jobsData, error: jobsError } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('recruiter_id', user.id);
+
+        if (jobsError) throw jobsError;
+        setRecruiterJobs(jobsData || []);
+
+        // Fetch applications
+        const { data: appsData, error: appsError } = await supabase
+          .from('applications')
+          .select('*, job:jobs(title), applicant:profiles(full_name, email)')
+          .in('job_id', (jobsData || []).map(j => j.id))
+          .order('created_at', { ascending: false });
+
+        if (appsError) throw appsError;
+        setAllApplications(appsData || []);
+
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const updateStatus = async (applicationId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({ status: newStatus })
+        .eq('id', applicationId);
+
+      if (error) throw error;
+
+      setAllApplications(prev => prev.map(a =>
+        a.id === applicationId ? { ...a, status: newStatus } : a
+      ));
+    } catch (error) {
+      console.error("Error updating status:", error);
+    }
+  };
 
   const filteredApplications = allApplications.filter(app => {
     const matchesSearch = app.applicantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         app.applicantEmail.toLowerCase().includes(searchTerm.toLowerCase());
+      app.applicant?.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-    const matchesJob = jobFilter === 'all' || app.jobId === jobFilter;
+    const matchesJob = jobFilter === 'all' || app.job_id === jobFilter;
     return matchesSearch && matchesStatus && matchesJob;
   });
 
@@ -145,15 +195,15 @@ const ApplicantsPage: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {filteredApplications.map(application => {
-              const job = jobs.find(j => j.id === application.jobId);
-              
+              const job = application.job;
+
               return (
                 <div key={application.id} className="card-elevated p-5">
                   <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                     {/* Avatar */}
                     <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                       <span className="text-lg font-semibold text-primary">
-                        {application.applicantName.split(' ').map(n => n[0]).join('')}
+                        {application.applicant?.full_name?.split(' ').map((n: string) => n[0]).join('') || '?'}
                       </span>
                     </div>
 
@@ -161,7 +211,7 @@ const ApplicantsPage: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                         <div>
-                          <h3 className="text-lg font-semibold">{application.applicantName}</h3>
+                          <h3 className="text-lg font-semibold">{application.applicant?.full_name}</h3>
                           <p className="text-muted-foreground">Applied for: {job?.title}</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -183,11 +233,11 @@ const ApplicantsPage: React.FC = () => {
                                 <Download className="w-4 h-4 mr-2" />
                                 Download CV
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="text-success">
+                              <DropdownMenuItem className="text-success" onClick={() => updateStatus(application.id, 'shortlisted')}>
                                 <CheckCircle2 className="w-4 h-4 mr-2" />
                                 Shortlist
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
+                              <DropdownMenuItem className="text-destructive" onClick={() => updateStatus(application.id, 'rejected')}>
                                 <XCircle className="w-4 h-4 mr-2" />
                                 Reject
                               </DropdownMenuItem>
@@ -200,15 +250,16 @@ const ApplicantsPage: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Mail className="w-4 h-4" />
-                          {application.applicantEmail}
+                          <Mail className="w-4 h-4" />
+                          {application.applicant?.email}
                         </span>
                         <span className="flex items-center gap-1">
                           <Phone className="w-4 h-4" />
-                          {application.applicantPhone}
+                          --
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-4 h-4" />
-                          {formatDistanceToNow(new Date(application.appliedAt), { addSuffix: true })}
+                          {formatDistanceToNow(new Date(application.created_at), { addSuffix: true })}
                         </span>
                       </div>
 

@@ -13,10 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  Plus, 
-  X, 
-  Briefcase, 
+import {
+  Plus,
+  X,
+  Briefcase,
   DollarSign,
   MapPin,
   FileText,
@@ -27,8 +27,10 @@ import { Job } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
+import { supabase } from '@/lib/supabase';
+
 const PostJobPage: React.FC = () => {
-  const { addJob, currentUser } = useApp();
+  const { currentUser } = useApp();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,40 +87,59 @@ const PostJobPage: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      // Manual session check/refresh
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-    const newJob: Job = {
-      id: `j${Date.now()}`,
-      title: formData.title,
-      company: formData.company,
-      location: formData.location,
-      type: formData.type,
-      salary: {
-        min: parseInt(formData.salaryMin) || 0,
-        max: parseInt(formData.salaryMax) || 0,
-        period: formData.salaryPeriod
-      },
-      description: formData.description,
-      requirements: formData.requirements.filter(r => r.trim()),
-      benefits: formData.benefits.filter(b => b.trim()),
-      category: formData.category,
-      postedAt: new Date().toISOString().split('T')[0],
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      recruiterId: currentUser?.id || '',
-      applicationsCount: 0,
-      isActive: true
-    };
+      let userId = session?.user?.id;
 
-    addJob(newJob);
-    setIsSubmitting(false);
+      if (!userId || sessionError) {
+        // Attempt refresh or hard fail
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshData.session?.user) {
+          userId = refreshData.session.user.id;
+        } else {
+          throw new Error("Your session has expired. Please login again.");
+        }
+      }
 
-    toast({
-      title: 'Job Posted Successfully!',
-      description: 'Your job listing is now live and visible to job seekers.',
-    });
+      if (!userId) throw new Error("Not authenticated");
 
-    navigate('/dashboard');
+      const salaryRange = `${formData.salaryMin} - ${formData.salaryMax} ${formData.salaryPeriod}`;
+
+      const { error } = await supabase
+        .from('jobs')
+        .insert({
+          recruiter_id: userId,
+          title: formData.title,
+          company_name: formData.company,
+          location: formData.location,
+          description: formData.description,
+          salary_range: salaryRange,
+          job_type: formData.type,
+          category: formData.category,
+          requirements: formData.requirements.filter(r => r.trim()),
+          benefits: formData.benefits.filter(b => b.trim())
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Job Posted Successfully!',
+        description: 'Your job listing is now live and visible to job seekers.',
+      });
+
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: 'Error posting job',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -163,7 +184,7 @@ const PostJobPage: React.FC = () => {
               <FileText className="w-5 h-5 text-primary" />
               Basic Information
             </h2>
-            
+
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Job Title *</Label>
@@ -241,7 +262,7 @@ const PostJobPage: React.FC = () => {
               <DollarSign className="w-5 h-5 text-success" />
               Compensation
             </h2>
-            
+
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="salaryMin">Minimum *</Label>

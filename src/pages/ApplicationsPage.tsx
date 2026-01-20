@@ -1,13 +1,14 @@
 import React from 'react';
 import Header from '@/components/layout/Header';
 import { useApp } from '@/context/AppContext';
+import { supabase } from '@/lib/supabase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { 
-  FileText, 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
+import {
+  FileText,
+  Clock,
+  CheckCircle2,
+  XCircle,
   Eye,
   Building2,
   MapPin,
@@ -17,9 +18,33 @@ import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 
 const ApplicationsPage: React.FC = () => {
-  const { applications, jobs, currentUser } = useApp();
+  const { currentUser } = useApp();
+  const [userApplications, setUserApplications] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
-  const userApplications = applications.filter(a => a.applicantId === currentUser?.id);
+  React.useEffect(() => {
+    const fetchApplications = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('applications')
+          .select('*, job:jobs(*)')
+          .eq('seeker_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setUserApplications(data || []);
+
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchApplications();
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -74,16 +99,16 @@ const ApplicationsPage: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {userApplications.map(application => {
-              const job = jobs.find(j => j.id === application.jobId);
+              const job = application.job;
               const StatusIcon = getStatusIcon(application.status);
-              
+
               return (
                 <div key={application.id} className="card-elevated p-5">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                       <Building2 className="w-6 h-6 text-muted-foreground" />
                     </div>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -95,7 +120,7 @@ const ApplicationsPage: React.FC = () => {
                           {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                         </Badge>
                       </div>
-                      
+
                       {job && (
                         <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
@@ -104,10 +129,10 @@ const ApplicationsPage: React.FC = () => {
                           </span>
                         </div>
                       )}
-                      
+
                       <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                         <span className="text-sm text-muted-foreground">
-                          Applied {formatDistanceToNow(new Date(application.appliedAt), { addSuffix: true })}
+                          Applied {formatDistanceToNow(new Date(application.created_at), { addSuffix: true })}
                         </span>
                         <Button variant="ghost" size="sm">
                           View Details

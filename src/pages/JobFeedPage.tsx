@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import Header from '@/components/layout/Header';
 import JobCard from '@/components/jobs/JobCard';
 import JobDetailsModal from '@/components/jobs/JobDetailsModal';
@@ -18,7 +19,9 @@ import {
 import { Search, SlidersHorizontal, MapPin, X } from 'lucide-react';
 
 const JobFeedPage: React.FC = () => {
-  const { jobs, currentUser } = useApp();
+  const { currentUser } = useApp();
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -27,12 +30,31 @@ const JobFeedPage: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [showApply, setShowApply] = useState(false);
 
+  React.useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setJobs(data || []);
+      } catch (error) {
+        console.error('Error fetching jobs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchJobs();
+  }, []);
+
   const categories = [...new Set(jobs.map(job => job.category))];
   const locations = [...new Set(jobs.map(job => job.location))];
 
   const filteredJobs = jobs.filter(job => {
     const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.company.toLowerCase().includes(searchTerm.toLowerCase());
+      job.company.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesLocation = !locationFilter || job.location.toLowerCase().includes(locationFilter.toLowerCase());
     const matchesType = typeFilter === 'all' || job.type === typeFilter;
     const matchesCategory = categoryFilter === 'all' || job.category === categoryFilter;
@@ -171,8 +193,8 @@ const JobFeedPage: React.FC = () => {
                 {currentUser.subscription.plan.charAt(0).toUpperCase() + currentUser.subscription.plan.slice(1)} Plan
               </Badge>
               <span className="text-muted-foreground">
-                {currentUser.subscription.applicationsRemaining === -1 
-                  ? 'Unlimited applications' 
+                {currentUser.subscription.applicationsRemaining === -1
+                  ? 'Unlimited applications'
                   : `${currentUser.subscription.applicationsRemaining} applications remaining`
                 }
               </span>

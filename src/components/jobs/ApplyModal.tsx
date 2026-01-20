@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   Dialog,
   DialogContent,
@@ -10,9 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { 
-  Upload, 
-  FileText, 
+import {
+  Upload,
+  FileText,
   CheckCircle,
   Building2,
   AlertCircle
@@ -69,50 +70,47 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!hasExistingCV && !cvFile) {
-      toast({
-        title: 'CV Required',
-        description: 'Please upload your CV to apply',
-        variant: 'destructive'
-      });
-      return;
-    }
-
     setIsSubmitting(true);
 
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const { user } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
-    const cvUrl = cvFile ? `/uploads/${cvFile.name}` : currentUser?.cvUrl || '';
-    
-    if (cvFile && !hasExistingCV) {
-      updateUserCV(cvUrl);
+      // For MVP, we skip real file upload and just use a placeholder URL if a file is selected
+      // In a real app, you would upload 'cvFile' to Supabase Storage here.
+      const cvUrl = cvFile ? `https://fake-storage.com/${cvFile.name}` : currentUser?.cvUrl || '';
+
+      const { error } = await supabase
+        .from('applications')
+        .insert({
+          job_id: job.id,
+          seeker_id: user.id,
+          status: 'pending'
+        });
+
+      if (error) {
+        if (error.code === '23505') { // Unique violation
+          throw new Error("You have already applied for this job.");
+        }
+        throw error;
+      }
+
+      toast({
+        title: 'Application Submitted!',
+        description: `Your application for ${job.title} has been sent successfully.`,
+      });
+
+      onClose();
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: 'Application Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const application: JobApplication = {
-      id: `a${Date.now()}`,
-      jobId: job.id,
-      applicantId: currentUser?.id || '',
-      applicantName: formData.name,
-      applicantEmail: formData.email,
-      applicantPhone: formData.phone,
-      experience: formData.experience,
-      cvUrl,
-      coverLetter: formData.coverLetter || undefined,
-      status: 'pending',
-      appliedAt: new Date().toISOString().split('T')[0]
-    };
-
-    applyToJob(application);
-    setIsSubmitting(false);
-    
-    toast({
-      title: 'Application Submitted!',
-      description: `Your application for ${job.title} has been sent successfully.`,
-    });
-
-    onClose();
   };
 
   return (

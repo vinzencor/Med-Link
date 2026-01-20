@@ -15,7 +15,6 @@ const GetStartedPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialRole = searchParams.get('role') as 'job_seeker' | 'recruiter' || 'job_seeker';
   const [selectedRole, setSelectedRole] = useState<'job_seeker' | 'recruiter'>(initialRole);
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
   const { setUserRole } = useApp();
   const navigate = useNavigate();
 
@@ -23,12 +22,7 @@ const GetStartedPage: React.FC = () => {
 
   const handleSelectPlan = (planId: string) => {
     setUserRole(selectedRole);
-    // In a real app, this would go to a payment page
-    if (selectedRole === 'recruiter') {
-      navigate('/dashboard');
-    } else {
-      navigate('/feed');
-    }
+    navigate(`/register?role=${selectedRole}&plan=${planId}`);
   };
 
   return (
@@ -76,23 +70,7 @@ const GetStartedPage: React.FC = () => {
           </TabsList>
         </Tabs>
 
-        {/* Billing Cycle Toggle */}
-        <div className="flex items-center justify-center gap-4 mb-10">
-          <Label htmlFor="billing" className={billingCycle === 'monthly' ? 'font-semibold' : 'text-muted-foreground'}>
-            Monthly
-          </Label>
-          <Switch
-            id="billing"
-            checked={billingCycle === 'yearly'}
-            onCheckedChange={(checked) => setBillingCycle(checked ? 'yearly' : 'monthly')}
-          />
-          <Label htmlFor="billing" className={billingCycle === 'yearly' ? 'font-semibold' : 'text-muted-foreground'}>
-            Yearly
-          </Label>
-          {billingCycle === 'yearly' && (
-            <Badge variant="secondary" className="bg-success/10 text-success">Save up to 20%</Badge>
-          )}
-        </div>
+
 
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
@@ -103,7 +81,6 @@ const GetStartedPage: React.FC = () => {
               price={plan.price}
               features={plan.features}
               recommended={plan.recommended}
-              billingCycle={billingCycle}
               onSelect={() => handleSelectPlan(plan.id)}
               buttonText={plan.recommended ? 'Get Started' : 'Select Plan'}
             />

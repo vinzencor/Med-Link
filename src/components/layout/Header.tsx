@@ -1,18 +1,21 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { 
-  Briefcase, 
-  Search, 
-  Bookmark, 
-  User, 
-  Bell, 
-  Plus, 
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Briefcase,
+  Search,
+  Bookmark,
+  User,
+  Bell,
+  Plus,
   LayoutDashboard,
   LogOut,
   Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +27,29 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 const Header: React.FC = () => {
   const { currentUser, userRole, setCurrentUser } = useApp();
+  const { user, role, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [userProfile, setUserProfile] = React.useState<any>(null);
+
+  // Fetch user profile data
+  React.useEffect(() => {
+    const fetchProfile = async () => {
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (!error && data) {
+          setUserProfile(data);
+        }
+      }
+    };
+    fetchProfile();
+  }, [user]);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -40,19 +65,36 @@ const Header: React.FC = () => {
     { path: '/applicants', label: 'Applicants', icon: User },
   ];
 
-  const navItems = userRole === 'recruiter' ? recruiterNav : jobSeekerNav;
+  const navItems = (role === 'recruiter' || userRole === 'recruiter') ? recruiterNav : jobSeekerNav;
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    window.location.href = '/';
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      setCurrentUser(null);
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out.",
+      });
+      navigate('/');
+    } catch (error) {
+      console.error('Error logging out:', error);
+      toast({
+        title: "Error",
+        description: "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
+
+  const displayUser = user || currentUser;
+  const displayRole = role || userRole;
 
   return (
     <header className="sticky top-0 z-50 bg-card border-b border-border shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to={userRole ? (userRole === 'recruiter' ? '/dashboard' : '/feed') : '/'} className="flex items-center gap-2">
+          <Link to={displayRole ? (displayRole === 'recruiter' ? '/dashboard' : '/feed') : '/'} className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
               <Briefcase className="w-5 h-5 text-primary-foreground" />
             </div>
@@ -60,7 +102,7 @@ const Header: React.FC = () => {
           </Link>
 
           {/* Navigation */}
-          {currentUser && (
+          {displayUser && (
             <nav className="hidden md:flex items-center gap-1">
               {navItems.map((item) => (
                 <Link
@@ -81,7 +123,7 @@ const Header: React.FC = () => {
 
           {/* Right side */}
           <div className="flex items-center gap-3">
-            {currentUser ? (
+            {displayUser ? (
               <>
                 <Button variant="ghost" size="icon" className="relative">
                   <Bell className="w-5 h-5" />
@@ -93,18 +135,18 @@ const Header: React.FC = () => {
                     <Button variant="ghost" className="flex items-center gap-2 px-2">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                          {currentUser.name.split(' ').map(n => n[0]).join('')}
+                          {userProfile?.full_name ? userProfile.full_name.split(' ').map((n: string) => n[0]).join('') : (currentUser?.name ? currentUser.name.split(' ').map((n: string) => n[0]).join('') : user?.email?.[0].toUpperCase() || 'U')}
                         </AvatarFallback>
                       </Avatar>
                       <span className="hidden sm:block text-sm font-medium">
-                        {currentUser.name.split(' ')[0]}
+                        {userProfile?.full_name?.split(' ')[0] || currentUser?.name?.split(' ')[0] || 'User'}
                       </span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
                     <div className="px-3 py-2">
-                      <p className="font-medium">{currentUser.name}</p>
-                      <p className="text-sm text-muted-foreground">{currentUser.email}</p>
+                      <p className="font-medium">{userProfile?.full_name || currentUser?.name || 'User'}</p>
+                      <p className="text-sm text-muted-foreground">{userProfile?.email || user?.email || currentUser?.email}</p>
                     </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>

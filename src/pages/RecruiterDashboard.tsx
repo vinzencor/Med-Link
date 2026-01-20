@@ -1,6 +1,7 @@
 import React from 'react';
 import Header from '@/components/layout/Header';
 import { useApp } from '@/context/AppContext';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
@@ -11,46 +12,81 @@ import {
   TrendingUp,
   Plus,
   Clock,
-  CheckCircle2,
   ArrowRight,
   Building2
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 const RecruiterDashboard: React.FC = () => {
-  const { jobs, applications, currentUser } = useApp();
+  const { currentUser } = useApp();
+  const [recruiterJobs, setRecruiterJobs] = React.useState<any[]>([]);
+  const [applications, setApplications] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
-  const recruiterJobs = jobs.filter(j => j.recruiterId === currentUser?.id);
-  const totalApplications = applications.filter(a => 
-    recruiterJobs.some(j => j.id === a.jobId)
-  );
-  const pendingApplications = totalApplications.filter(a => a.status === 'pending');
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Fetch jobs
+        const { data: jobsData, error: jobsError } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('recruiter_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (jobsError) throw jobsError;
+        setRecruiterJobs(jobsData || []);
+
+        // Fetch applications for these jobs
+        const { data: appsData, error: appsError } = await supabase
+          .from('applications')
+          .select('*, job:jobs(title), applicant:profiles(full_name, email)')
+          .in('job_id', (jobsData || []).map(j => j.id))
+          .order('created_at', { ascending: false });
+
+        if (appsError) throw appsError;
+        setApplications(appsData || []);
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const totalApplications = applications;
+  const pendingApplications = applications.filter(a => a.status === 'pending');
 
   const stats = [
-    { 
-      label: 'Active Jobs', 
-      value: recruiterJobs.filter(j => j.isActive).length, 
+    {
+      label: 'Active Jobs',
+      value: recruiterJobs.filter(j => j.isActive).length,
       icon: Briefcase,
       color: 'text-primary',
       bg: 'bg-primary/10'
     },
-    { 
-      label: 'Total Applicants', 
-      value: totalApplications.length, 
+    {
+      label: 'Total Applicants',
+      value: totalApplications.length,
       icon: Users,
       color: 'text-success',
       bg: 'bg-success/10'
     },
-    { 
-      label: 'Pending Review', 
-      value: pendingApplications.length, 
+    {
+      label: 'Pending Review',
+      value: pendingApplications.length,
       icon: Clock,
       color: 'text-warning',
       bg: 'bg-warning/10'
     },
-    { 
-      label: 'Total Views', 
-      value: recruiterJobs.reduce((acc, j) => acc + j.applicationsCount * 5, 0), 
+    {
+      label: 'Total Views',
+      value: 0, // Views tracking not implemented yet
       icon: Eye,
       color: 'text-accent',
       bg: 'bg-accent/10'
@@ -108,7 +144,7 @@ const RecruiterDashboard: React.FC = () => {
                   <Link to="/my-jobs">View All</Link>
                 </Button>
               </div>
-              
+
               {recruiterJobs.length === 0 ? (
                 <div className="p-12 text-center">
                   <div className="w-14 h-14 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
@@ -136,18 +172,19 @@ const RecruiterDashboard: React.FC = () => {
                               <h3 className="font-medium truncate">{job.title}</h3>
                               <p className="text-sm text-muted-foreground">{job.location}</p>
                             </div>
-                            <Badge variant={job.isActive ? 'default' : 'secondary'}>
-                              {job.isActive ? 'Active' : 'Closed'}
+                            <Badge variant={'default'}>
+                              Active
                             </Badge>
                           </div>
                           <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Users className="w-4 h-4" />
-                              {job.applicationsCount} applicants
+                              {/* Count specific to this job from fetched apps */}
+                              {applications.filter(a => a.job_id === job.id).length} applicants
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-4 h-4" />
-                              Posted {formatDistanceToNow(new Date(job.postedAt), { addSuffix: true })}
+                              Posted {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}
                             </span>
                           </div>
                         </div>
@@ -181,19 +218,18 @@ const RecruiterDashboard: React.FC = () => {
               ) : (
                 <div className="divide-y divide-border">
                   {totalApplications.slice(0, 5).map(application => {
-                    const job = jobs.find(j => j.id === application.jobId);
                     return (
                       <div key={application.id} className="p-4 hover:bg-secondary/50 transition-colors">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                             <span className="text-sm font-medium text-primary">
-                              {application.applicantName.split(' ').map(n => n[0]).join('')}
+                              {application.applicant?.full_name?.split(' ').map((n: string) => n[0]).join('') || '?'}
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{application.applicantName}</p>
+                            <p className="font-medium truncate">{application.applicant?.full_name || 'Unknown Candidate'}</p>
                             <p className="text-sm text-muted-foreground truncate">
-                              Applied for {job?.title}
+                              Applied for {application.job?.title}
                             </p>
                           </div>
                           <Badge variant="outline" className="shrink-0 bg-warning/10 text-warning border-warning/20">
