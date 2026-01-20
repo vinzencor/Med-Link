@@ -6,18 +6,21 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  FileText, 
-  Upload, 
+import {
+  User,
+  Mail,
+  Phone,
+  FileText,
+  Upload,
   CheckCircle2,
   Camera,
   Briefcase
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+
+import { ProfileHealth } from '@/components/profile/ProfileHealth';
+import { VerificationStatus } from '@/components/profile/VerificationStatus';
 
 const ProfilePage: React.FC = () => {
   const { currentUser, updateUserCV, userRole } = useApp();
@@ -61,6 +64,8 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  if (!currentUser) return null; // Safety check
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -73,6 +78,11 @@ const ProfilePage: React.FC = () => {
           </p>
         </div>
 
+        {/* Profile Health - New Feature */}
+        {userRole === 'job_seeker' && (
+          <ProfileHealth user={currentUser} />
+        )}
+
         {/* Profile Header */}
         <div className="card-elevated p-6 mb-6">
           <div className="flex flex-col sm:flex-row items-center gap-6">
@@ -82,9 +92,9 @@ const ProfilePage: React.FC = () => {
                   {currentUser?.name?.split(' ').map(n => n[0]).join('')}
                 </AvatarFallback>
               </Avatar>
-              <Button 
-                size="icon" 
-                variant="secondary" 
+              <Button
+                size="icon"
+                variant="secondary"
                 className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full"
               >
                 <Camera className="w-4 h-4" />
@@ -104,7 +114,7 @@ const ProfilePage: React.FC = () => {
                 )}
               </div>
             </div>
-            <Button 
+            <Button
               variant={isEditing ? 'default' : 'outline'}
               onClick={() => isEditing ? handleSave() : setIsEditing(true)}
             >
@@ -113,13 +123,18 @@ const ProfilePage: React.FC = () => {
           </div>
         </div>
 
+        {/* Verification Status - New Feature */}
+        {userRole === 'job_seeker' && (
+          <VerificationStatus user={currentUser} />
+        )}
+
         {/* Personal Information */}
         <div className="card-elevated p-6 mb-6">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <User className="w-5 h-5 text-primary" />
             Personal Information
           </h3>
-          
+
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -142,7 +157,7 @@ const ProfilePage: React.FC = () => {
                 />
               </div>
             </div>
-            
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
@@ -188,7 +203,7 @@ const ProfilePage: React.FC = () => {
               <FileText className="w-5 h-5 text-primary" />
               Resume / CV
             </h3>
-            
+
             {currentUser?.cvUrl ? (
               <div className="p-4 bg-success/5 border border-success/20 rounded-lg">
                 <div className="flex items-center justify-between">
@@ -242,7 +257,7 @@ const ProfilePage: React.FC = () => {
             <Briefcase className="w-5 h-5 text-primary" />
             Subscription
           </h3>
-          
+
           {currentUser?.subscription ? (
             <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
               <div>

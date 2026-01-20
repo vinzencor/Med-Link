@@ -13,6 +13,18 @@ export interface User {
   phone?: string;
   experience?: string;
   bio?: string;
+  verificationStatus?: 'unverified' | 'pending' | 'verified';
+  profileScore?: number;
+  documents?: UserDocument[];
+}
+
+export interface UserDocument {
+  id: string;
+  name: string;
+  type: string;
+  url: string;
+  uploadedAt: string;
+  status: 'pending' | 'verified' | 'rejected';
 }
 
 export interface Subscription {
