@@ -73,7 +73,7 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
     setIsSubmitting(true);
 
     try {
-      const { user } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
       // For MVP, we skip real file upload and just use a placeholder URL if a file is selected
@@ -118,6 +118,9 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl">Apply for Position</DialogTitle>
+          <DialogDescription>
+            Complete the form below to apply for this position.
+          </DialogDescription>
           <div className="flex items-center gap-3 mt-2 p-3 bg-secondary rounded-lg">
             <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center">
               <Building2 className="w-5 h-5 text-muted-foreground" />

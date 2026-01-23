@@ -69,13 +69,15 @@ const Header: React.FC = () => {
 
   const handleLogout = async () => {
     try {
+      console.log('Logging out...');
       await signOut();
       setCurrentUser(null);
       toast({
         title: "Logged out",
         description: "You have been successfully logged out.",
       });
-      navigate('/');
+      // Redirect to login page after logout
+      navigate('/login');
     } catch (error) {
       console.error('Error logging out:', error);
       toast({

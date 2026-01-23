@@ -23,7 +23,11 @@ const AuthContext = createContext<AuthContextType>({
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
-    const [role, setRole] = useState<UserRole | null>(null);
+    const [role, setRole] = useState<UserRole | null>(() => {
+        // Optimistic initialization from localStorage
+        const cachedRole = localStorage.getItem('user_role');
+        return cachedRole as UserRole | null;
+    });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -37,23 +41,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
                 if (error) {
                     console.error('Error fetching profile:', error);
-                    setRole(null);
+                    // Do not clear role immediately if error, maybe transient? 
+                    // But if no profile found, we might need to clear.
+                    // For now, if error, we stick to what we have or null? 
+                    // Better to be safe.
+                    // If fetching fails, we can't be sure of role. 
+                    // But if we have cached role, we might keep it?
                 } else if (data) {
-                    setRole(data.role as UserRole);
+                    const newRole = data.role as UserRole;
+                    setRole(newRole);
+                    localStorage.setItem('user_role', newRole);
                 }
             } catch (error) {
                 console.error('Unexpected error fetching profile:', error);
-                setRole(null);
             }
         };
 
         const initializeAuth = async () => {
             try {
-                setLoading(true);
-
-                // Create a timeout promise to prevent infinite loading
+                // Timeout promise
                 const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('Auth initialization timed out')), 10000);
+                    setTimeout(() => reject(new Error('Auth timeout')), 30000);
                 });
 
                 const authPromise = async () => {
@@ -62,9 +70,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     return session;
                 };
 
-                // Race between auth check and timeout
+                // Race
                 try {
                     const session = await Promise.race([authPromise(), timeoutPromise]) as Session | null;
+
                     setSession(session);
                     setUser(session?.user ?? null);
 
@@ -72,21 +81,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                         await fetchProfile(session.user.id);
                     } else {
                         setRole(null);
+                        localStorage.removeItem('user_role');
                     }
                 } catch (error: any) {
-                    if (error.message === 'Auth initialization timed out') {
-                        console.warn('Auth initialization timed out - proceeding with null session');
-                        // Don't throw, just let it finalize
+                    if (error.message === 'Auth timeout') {
+                        console.warn('Auth initialization timed out');
+                        // Assume guest if timed out to unblock UI
+                        setSession(null);
+                        setUser(null);
                     } else {
                         throw error;
                     }
                 }
             } catch (error) {
                 console.error('Error initializing auth:', error);
-                // Clear session on error
                 setSession(null);
                 setUser(null);
                 setRole(null);
+                localStorage.removeItem('user_role');
             } finally {
                 setLoading(false);
             }
@@ -96,14 +108,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             console.log('Auth state changed:', _event, session?.user?.id);
-            setSession(session);
-            setUser(session?.user ?? null);
-
-            if (session?.user) {
-                // Always fetch the profile when user logs in
-                await fetchProfile(session.user.id);
-            } else {
+            if (_event === 'SIGNED_OUT') {
+                setSession(null);
+                setUser(null);
                 setRole(null);
+                localStorage.removeItem('user_role');
+            } else if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED') {
+                setSession(session);
+                setUser(session?.user ?? null);
+                if (session?.user) {
+                    await fetchProfile(session.user.id);
+                }
             }
             setLoading(false);
         });
@@ -112,10 +127,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, []);
 
     const signOut = async () => {
-        await supabase.auth.signOut();
+        // Optimistic update - clear state immediately
         setSession(null);
         setUser(null);
         setRole(null);
+        localStorage.removeItem('user_role');
+
+        try {
+            await supabase.auth.signOut();
+        } catch (error) {
+            console.error('Error signing out:', error);
+        }
     };
 
     return (

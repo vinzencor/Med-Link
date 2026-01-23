@@ -2,10 +2,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Briefcase, 
-  Users, 
-  Shield, 
+import {
+  Briefcase,
+  Users,
+  Shield,
   TrendingUp,
   CheckCircle2,
   ArrowRight,
@@ -50,20 +50,20 @@ const LandingPage: React.FC = () => {
       {/* Hero Section */}
       <section className="gradient-hero relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-50"></div>
-        
+
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-32">
           <div className="text-center">
             <Badge variant="secondary" className="mb-6 bg-primary-foreground/10 text-primary-foreground border-primary-foreground/20">
               #1 Healthcare Recruitment Platform
             </Badge>
-            
+
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-primary-foreground mb-6 tracking-tight">
               Connect Healthcare <br className="hidden sm:block" />
               <span className="text-primary-foreground/80">Talent with Opportunity</span>
             </h1>
-            
+
             <p className="text-lg sm:text-xl text-primary-foreground/70 max-w-2xl mx-auto mb-10">
-              The leading platform connecting nursing professionals with top healthcare employers. 
+              The leading platform connecting nursing professionals with top healthcare employers.
               Find your dream job or hire exceptional healthcare talent.
             </p>
 
@@ -74,7 +74,10 @@ const LandingPage: React.FC = () => {
                   <ArrowRight className="w-5 h-5" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="xl" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 w-full sm:w-auto">
+              <Button asChild variant="outline" size="xl" className="bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 w-full sm:w-auto">
+                <Link to="/login">Sign In</Link>
+              </Button>
+              <Button asChild variant="ghost" size="xl" className="text-primary-foreground hover:bg-primary-foreground/10 w-full sm:w-auto">
                 <Link to="/pricing">View Pricing</Link>
               </Button>
             </div>
@@ -105,8 +108,8 @@ const LandingPage: React.FC = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className="card-elevated p-6 hover:border-primary/30"
                 style={{ animationDelay: `${index * 100}ms` }}
               >

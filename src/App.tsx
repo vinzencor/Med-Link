@@ -68,6 +68,7 @@ const App = () => (
               {/* Shared Protected Routes */}
               <Route element={<ProtectedRoute />}>
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/subscription" element={<PricingPage />} />
               </Route>
 
               {/* Catch-all */}

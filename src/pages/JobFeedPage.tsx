@@ -19,9 +19,8 @@ import {
 import { Search, SlidersHorizontal, MapPin, X } from 'lucide-react';
 
 const JobFeedPage: React.FC = () => {
-  const { currentUser } = useApp();
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { currentUser, jobs, jobsLoading } = useApp();
+  // Local state for filters
   const [searchTerm, setSearchTerm] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -30,24 +29,12 @@ const JobFeedPage: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [showApply, setShowApply] = useState(false);
 
-  React.useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('jobs')
-          .select('*')
-          .order('created_at', { ascending: false });
+  // loading state comes from context now
+  const loading = jobsLoading;
 
-        if (error) throw error;
-        setJobs(data || []);
-      } catch (error) {
-        console.error('Error fetching jobs:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchJobs();
-  }, []);
+  // Remove local useEffect fetching
+  // The jobs are now coming from context which is preserved on navigation events
+  // if AppProvider is high enough in the tree.
 
   const categories = [...new Set(jobs.map(job => job.category))];
   const locations = [...new Set(jobs.map(job => job.location))];
@@ -58,7 +45,7 @@ const JobFeedPage: React.FC = () => {
     const matchesLocation = !locationFilter || job.location.toLowerCase().includes(locationFilter.toLowerCase());
     const matchesType = typeFilter === 'all' || job.type === typeFilter;
     const matchesCategory = categoryFilter === 'all' || job.category === categoryFilter;
-    return matchesSearch && matchesLocation && matchesType && matchesCategory && job.isActive;
+    return matchesSearch && matchesLocation && matchesType && matchesCategory;
   });
 
   const handleViewDetails = (job: Job) => {
@@ -207,14 +194,26 @@ const JobFeedPage: React.FC = () => {
 
         {/* Job List */}
         <div className="space-y-4">
-          {filteredJobs.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4 animate-pulse">
+                <Search className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">Loading jobs...</h3>
+              <p className="text-muted-foreground">
+                Please wait while we fetch available positions
+              </p>
+            </div>
+          ) : filteredJobs.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
                 <Search className="w-8 h-8 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-semibold mb-2">No jobs found</h3>
               <p className="text-muted-foreground">
-                Try adjusting your search or filter criteria
+                {jobs.length === 0
+                  ? 'There are no jobs posted yet. Check back later!'
+                  : 'Try adjusting your search or filter criteria'}
               </p>
               {hasActiveFilters && (
                 <Button variant="outline" className="mt-4" onClick={clearFilters}>

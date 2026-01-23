@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Header from '@/components/layout/Header';
 import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,13 +25,23 @@ import { VerificationStatus } from '@/components/profile/VerificationStatus';
 
 const ProfilePage: React.FC = () => {
   const { currentUser, updateUserCV, userRole } = useApp();
+  const { user, role } = useAuth();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [cvFile, setCvFile] = useState<File | null>(null);
 
+  // Use auth user if currentUser is not set
+  const displayUser = currentUser || {
+    name: user?.email?.split('@')[0] || 'User',
+    email: user?.email || '',
+    role: role || 'job_seeker'
+  };
+  
+  const displayRole = role || userRole;
+
   const [formData, setFormData] = useState({
-    name: currentUser?.name || '',
-    email: currentUser?.email || '',
+    name: displayUser?.name || '',
+    email: displayUser?.email || '',
     phone: currentUser?.phone || '',
     bio: currentUser?.bio || '',
     experience: currentUser?.experience || ''
@@ -64,8 +75,6 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  if (!currentUser) return null; // Safety check
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -79,7 +88,7 @@ const ProfilePage: React.FC = () => {
         </div>
 
         {/* Profile Health - New Feature */}
-        {userRole === 'job_seeker' && (
+        {displayRole === 'job_seeker' && currentUser && (
           <ProfileHealth user={currentUser} />
         )}
 
@@ -89,7 +98,7 @@ const ProfilePage: React.FC = () => {
             <div className="relative">
               <Avatar className="w-24 h-24">
                 <AvatarFallback className="bg-primary/10 text-primary text-2xl">
-                  {currentUser?.name?.split(' ').map(n => n[0]).join('')}
+                  {displayUser?.name?.split(' ').map(n => n[0]).join('') || 'U'}
                 </AvatarFallback>
               </Avatar>
               <Button
@@ -101,11 +110,11 @@ const ProfilePage: React.FC = () => {
               </Button>
             </div>
             <div className="text-center sm:text-left flex-1">
-              <h2 className="text-xl font-bold">{currentUser?.name}</h2>
-              <p className="text-muted-foreground">{currentUser?.email}</p>
+              <h2 className="text-xl font-bold">{displayUser?.name}</h2>
+              <p className="text-muted-foreground">{displayUser?.email}</p>
               <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
                 <Badge variant="secondary">
-                  {userRole === 'recruiter' ? 'Recruiter' : 'Job Seeker'}
+                  {displayRole === 'recruiter' ? 'Recruiter' : 'Job Seeker'}
                 </Badge>
                 {currentUser?.subscription && (
                   <Badge className="bg-primary/10 text-primary border-primary/20">
@@ -124,7 +133,7 @@ const ProfilePage: React.FC = () => {
         </div>
 
         {/* Verification Status - New Feature */}
-        {userRole === 'job_seeker' && (
+        {displayRole === 'job_seeker' && currentUser && (
           <VerificationStatus user={currentUser} />
         )}
 

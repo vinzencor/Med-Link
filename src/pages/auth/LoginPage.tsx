@@ -16,7 +16,6 @@ const LoginPage = () => {
     const navigate = useNavigate();
     const { toast } = useToast();
 
-    const [loginRole, setLoginRole] = useState<string | null>(null);
     const { user, role, loading: authLoading } = useAuth(); // Monitor global user state and role
 
     // Redirect if user is already logged in
@@ -33,69 +32,29 @@ const LoginPage = () => {
         }
     }, [user, role, authLoading, navigate]);
 
-    // Handle redirect after login
-    useEffect(() => {
-        if (user && loginRole) {
-            if (loginRole === 'recruiter') {
-                navigate('/dashboard', { replace: true });
-            } else if (loginRole === 'admin') {
-                navigate('/admin/dashboard', { replace: true });
-            } else {
-                navigate('/feed', { replace: true });
-            }
-            toast({
-                title: "Welcome back!",
-                description: "You have successfully logged in.",
-            });
-        }
-    }, [user, loginRole, navigate, toast]);
-
-
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
+            const { error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
 
             if (error) throw error;
 
-            if (data.user) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('role')
-                    .eq('id', data.user.id)
-                    .single();
+            // Login successful. 
+            // The AuthContext onAuthStateChange will trigger, fetch the profile/role,
+            // and the useEffect above will handle the redirection.
 
-                if (profile) {
-                    setLoginRole(profile.role);
-
-                    // Explicit redirect based on role
-                    setTimeout(() => {
-                        if (profile.role === 'recruiter') {
-                            navigate('/dashboard', { replace: true });
-                        } else if (profile.role === 'admin') {
-                            navigate('/admin/dashboard', { replace: true });
-                        } else {
-                            navigate('/feed', { replace: true });
-                        }
-                    }, 500); // Small delay to allow context to update, but force redirect if stuck
-                } else {
-                    // Fallback if no profile
-                    setLoginRole('job_seeker');
-                    navigate('/feed', { replace: true });
-                }
-            }
         } catch (error: any) {
             toast({
                 title: "Login failed",
                 description: error.message || "Please check your credentials",
                 variant: "destructive",
             });
-            setLoading(false); // Only stop loading on error, otherwise wait for redirect
+            setLoading(false);
         }
     };
 
