@@ -20,13 +20,14 @@ const LoginPage = () => {
 
     // Redirect if user is already logged in
     useEffect(() => {
-        if (!authLoading && user && role) {
-            // User is already authenticated, redirect to appropriate dashboard
+        if (!authLoading && user) {
+            // User is authenticated
             if (role === 'recruiter') {
                 navigate('/dashboard', { replace: true });
             } else if (role === 'admin') {
                 navigate('/admin/dashboard', { replace: true });
             } else {
+                // Default to job feed for job_seekers or if role is missing
                 navigate('/feed', { replace: true });
             }
         }

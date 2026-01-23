@@ -59,10 +59,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         const initializeAuth = async () => {
             try {
-                // Timeout promise
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('Auth timeout')), 30000);
-                });
+                // Add timeout to prevent infinite loading
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Auth timeout')), 15000)
+                );
 
                 const authPromise = async () => {
                     const { data: { session }, error } = await supabase.auth.getSession();
@@ -70,35 +70,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     return session;
                 };
 
-                // Race
-                try {
-                    const session = await Promise.race([authPromise(), timeoutPromise]) as Session | null;
+                const session = await Promise.race([
+                    authPromise(),
+                    timeoutPromise
+                ]) as any;
 
-                    setSession(session);
-                    setUser(session?.user ?? null);
+                setSession(session);
+                setUser(session?.user ?? null);
 
-                    if (session?.user) {
-                        await fetchProfile(session.user.id);
-                    } else {
-                        setRole(null);
-                        localStorage.removeItem('user_role');
-                    }
-                } catch (error: any) {
-                    if (error.message === 'Auth timeout') {
-                        console.warn('Auth initialization timed out');
-                        // Assume guest if timed out to unblock UI
-                        setSession(null);
-                        setUser(null);
-                    } else {
-                        throw error;
-                    }
+                if (session?.user) {
+                    await fetchProfile(session.user.id);
+                } else {
+                    setRole(null);
+                    localStorage.removeItem('user_role');
                 }
-            } catch (error) {
-                console.error('Error initializing auth:', error);
-                setSession(null);
-                setUser(null);
-                setRole(null);
-                localStorage.removeItem('user_role');
+            } catch (error: any) {
+                console.error('Error or Timeout initializing auth:', error);
+                if (error.message === 'Auth timeout') {
+                    // If timeout, assume no session to unblock UI
+                    setSession(null);
+                    setUser(null);
+                    setRole(null);
+                }
             } finally {
                 setLoading(false);
             }

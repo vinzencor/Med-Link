@@ -121,8 +121,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           .select('*')
           .order('created_at', { ascending: false });
 
+        // Timeout for job fetching (20s)
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Job fetch timeout')), 30000)
+          setTimeout(() => reject(new Error('Job fetch timeout')), 20000)
         );
 
         const { data, error } = await Promise.race([

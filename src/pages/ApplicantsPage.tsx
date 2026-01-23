@@ -60,7 +60,7 @@ const ApplicantsPage: React.FC = () => {
         // Fetch applications
         const { data: appsData, error: appsError } = await supabase
           .from('applications')
-          .select('*, job:jobs(title), applicant:profiles(full_name, email)')
+          .select('*, job:jobs(title), applicant:profiles(full_name, email, avatar_url)')
           .in('job_id', (jobsData || []).map(j => j.id))
           .order('created_at', { ascending: false });
 
@@ -94,8 +94,10 @@ const ApplicantsPage: React.FC = () => {
   };
 
   const filteredApplications = allApplications.filter(app => {
-    const matchesSearch = app.applicantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      app.applicant?.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const name = app.applicant?.full_name || 'Unknown Candidate';
+    const email = app.applicant?.email || '';
+    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
     const matchesJob = jobFilter === 'all' || app.job_id === jobFilter;
     return matchesSearch && matchesStatus && matchesJob;
@@ -109,6 +111,14 @@ const ApplicantsPage: React.FC = () => {
       case 'rejected': return 'bg-destructive/10 text-destructive border-destructive/20';
       case 'hired': return 'bg-success text-success-foreground';
       default: return '';
+    }
+  };
+
+  const handleViewCV = (url: string | null) => {
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      alert('No CV attached to this application');
     }
   };
 
@@ -196,22 +206,27 @@ const ApplicantsPage: React.FC = () => {
           <div className="space-y-4">
             {filteredApplications.map(application => {
               const job = application.job;
+              const cvUrl = application.cv_url || application.resume_url;
 
               return (
                 <div key={application.id} className="card-elevated p-5">
                   <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                     {/* Avatar */}
-                    <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-lg font-semibold text-primary">
-                        {application.applicant?.full_name?.split(' ').map((n: string) => n[0]).join('') || '?'}
-                      </span>
+                    <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                      {application.applicant?.avatar_url ? (
+                        <img src={application.applicant.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-lg font-semibold text-primary">
+                          {application.applicant?.full_name?.split(' ').map((n: string) => n[0]).join('') || '?'}
+                        </span>
+                      )}
                     </div>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                         <div>
-                          <h3 className="text-lg font-semibold">{application.applicant?.full_name}</h3>
+                          <h3 className="text-lg font-semibold">{application.applicant?.full_name || 'Unknown Candidate'}</h3>
                           <p className="text-muted-foreground">Applied for: {job?.title}</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -225,11 +240,11 @@ const ApplicantsPage: React.FC = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleViewCV(cvUrl)}>
                                 <Eye className="w-4 h-4 mr-2" />
-                                View Profile
+                                View CV
                               </DropdownMenuItem>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleViewCV(cvUrl)}>
                                 <Download className="w-4 h-4 mr-2" />
                                 Download CV
                               </DropdownMenuItem>
@@ -250,12 +265,11 @@ const ApplicantsPage: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Mail className="w-4 h-4" />
-                          <Mail className="w-4 h-4" />
                           {application.applicant?.email}
                         </span>
                         <span className="flex items-center gap-1">
                           <Phone className="w-4 h-4" />
-                          --
+                          {application.applicant?.phone || application.phone || '--'}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-4 h-4" />
@@ -266,24 +280,39 @@ const ApplicantsPage: React.FC = () => {
                       {/* Experience */}
                       <div className="mt-3 p-3 bg-secondary rounded-lg">
                         <p className="text-sm">
-                          <span className="font-medium">Experience:</span> {application.experience}
+                          <span className="font-medium">Experience:</span> {application.experience || 'Not specified'}
                         </p>
                       </div>
 
                       {/* Actions */}
                       <div className="flex items-center gap-2 mt-4">
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewCV(cvUrl)}
+                        >
                           <FileText className="w-4 h-4 mr-1" />
                           View CV
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.location.href = `mailto:${application.applicant?.email}`}
+                        >
                           <Mail className="w-4 h-4 mr-1" />
                           Contact
                         </Button>
-                        <Button size="sm" variant="success">
-                          <CheckCircle2 className="w-4 h-4 mr-1" />
-                          Shortlist
-                        </Button>
+                        {application.status === 'pending' && (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => updateStatus(application.id, 'shortlisted')}
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-1" />
+                            Shortlist
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
