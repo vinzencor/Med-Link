@@ -11,20 +11,41 @@ interface ProtectedRouteProps {
 export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
     const { user, role, loading } = useAuth();
 
+    console.log('🛡️ ProtectedRoute - loading:', loading, 'user:', !!user, 'role:', role);
+
     if (loading) {
+        console.log('⏳ Still loading auth...');
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <Loader2 className="h-8 w-8 animate-spin" />
+            <div className="flex items-center justify-center min-h-screen bg-background">
+                <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                    <p className="mt-4 text-sm text-muted-foreground">Loading...</p>
+                </div>
             </div>
         );
     }
 
     if (!user) {
+        console.log('❌ No user, redirecting to get-started');
         // Redirect to landing page or login if not authenticated
         return <Navigate to="/get-started" replace />;
     }
 
+    // If user exists but role is still loading, show loading
+    if (allowedRoles && !role) {
+        console.log('⏳ User exists but role not loaded yet...');
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-background">
+                <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                    <p className="mt-4 text-sm text-muted-foreground">Loading your profile...</p>
+                </div>
+            </div>
+        );
+    }
+
     if (allowedRoles && role && !allowedRoles.includes(role)) {
+        console.log('🚫 Role not allowed, redirecting based on role:', role);
         // Redirect based on role if they try to access unauthorized area
         if (role === 'admin') return <Navigate to="/admin/dashboard" replace />;
         if (role === 'recruiter') return <Navigate to="/dashboard" replace />;
@@ -32,5 +53,6 @@ export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
         return <Navigate to="/" replace />;
     }
 
+    console.log('✅ Access granted');
     return <Outlet />;
 };

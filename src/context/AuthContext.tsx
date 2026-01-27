@@ -31,8 +31,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        let isInitialized = false;
+
         const fetchProfile = async (userId: string) => {
             try {
+                console.log('🔍 Fetching profile for user:', userId);
                 const { data, error } = await supabase
                     .from('profiles')
                     .select('role')
@@ -40,59 +43,63 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     .single();
 
                 if (error) {
-                    console.error('Error fetching profile:', error);
-                    // Do not clear role immediately if error, maybe transient? 
-                    // But if no profile found, we might need to clear.
-                    // For now, if error, we stick to what we have or null? 
-                    // Better to be safe.
-                    // If fetching fails, we can't be sure of role. 
-                    // But if we have cached role, we might keep it?
+                    console.error('❌ Error fetching profile:', error);
+                    // If profile not found, keep cached role or set to null
+                    const cachedRole = localStorage.getItem('user_role') as UserRole | null;
+                    if (cachedRole) {
+                        console.log('📦 Using cached role:', cachedRole);
+                        setRole(cachedRole);
+                    } else {
+                        console.log('⚠️ No cached role, setting to null');
+                        setRole(null);
+                    }
                 } else if (data) {
                     const newRole = data.role as UserRole;
+                    console.log('✅ Profile fetched, role:', newRole);
                     setRole(newRole);
                     localStorage.setItem('user_role', newRole);
                 }
             } catch (error) {
-                console.error('Unexpected error fetching profile:', error);
+                console.error('❌ Unexpected error fetching profile:', error);
+                // Fallback to cached role
+                const cachedRole = localStorage.getItem('user_role') as UserRole | null;
+                if (cachedRole) {
+                    setRole(cachedRole);
+                }
             }
         };
 
         const initializeAuth = async () => {
             try {
-                // Add timeout to prevent infinite loading
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Auth timeout')), 15000)
-                );
+                console.log('🔄 Initializing auth...');
+                const { data: { session }, error } = await supabase.auth.getSession();
 
-                const authPromise = async () => {
-                    const { data: { session }, error } = await supabase.auth.getSession();
-                    if (error) throw error;
-                    return session;
-                };
+                if (error) {
+                    console.error('❌ Error getting session:', error);
+                    throw error;
+                }
 
-                const session = await Promise.race([
-                    authPromise(),
-                    timeoutPromise
-                ]) as any;
-
+                console.log('✅ Session retrieved:', session?.user?.id ? 'User logged in' : 'No user');
                 setSession(session);
                 setUser(session?.user ?? null);
 
                 if (session?.user) {
+                    console.log('👤 Fetching profile for user:', session.user.id);
                     await fetchProfile(session.user.id);
                 } else {
                     setRole(null);
                     localStorage.removeItem('user_role');
                 }
             } catch (error: any) {
-                console.error('Error or Timeout initializing auth:', error);
-                if (error.message === 'Auth timeout') {
-                    // If timeout, assume no session to unblock UI
-                    setSession(null);
-                    setUser(null);
-                    setRole(null);
-                }
+                console.error('❌ Error initializing auth:', error);
+                // Clear session on error
+                setSession(null);
+                setUser(null);
+                setRole(null);
+                localStorage.removeItem('user_role');
             } finally {
+                console.log('✅ Auth initialization complete, setting loading to false');
+                isInitialized = true;
                 setLoading(false);
             }
         };
@@ -100,20 +107,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         initializeAuth();
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            console.log('Auth state changed:', _event, session?.user?.id);
+            console.log('🔔 Auth state changed:', _event, session?.user?.id, 'isInitialized:', isInitialized);
+
+            // Skip SIGNED_IN event during initialization to avoid race condition
+            if (_event === 'SIGNED_IN' && !isInitialized) {
+                console.log('⏭️ Skipping SIGNED_IN during initialization');
+                return;
+            }
+
             if (_event === 'SIGNED_OUT') {
                 setSession(null);
                 setUser(null);
                 setRole(null);
                 localStorage.removeItem('user_role');
+                setLoading(false);
             } else if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED') {
                 setSession(session);
                 setUser(session?.user ?? null);
                 if (session?.user) {
                     await fetchProfile(session.user.id);
                 }
+                setLoading(false);
+            } else if (_event === 'INITIAL_SESSION') {
+                // This event fires when the auth listener is first set up
+                // We don't need to do anything here as initializeAuth handles it
+                console.log('📍 Initial session event (handled by initializeAuth)');
             }
-            setLoading(false);
         });
 
         return () => subscription.unsubscribe();

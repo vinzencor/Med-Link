@@ -115,21 +115,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         setJobsLoading(true);
 
-        // Add timeout for job fetching
-        const fetchPromise = supabase
+        const { data, error } = await supabase
           .from('jobs')
           .select('*')
           .order('created_at', { ascending: false });
-
-        // Timeout for job fetching (20s)
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Job fetch timeout')), 20000)
-        );
-
-        const { data, error } = await Promise.race([
-          fetchPromise.then(res => ({ data: res.data, error: res.error })),
-          timeoutPromise
-        ]) as any;
 
         if (error) {
           console.error('Supabase error fetching jobs:', error);
