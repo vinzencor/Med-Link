@@ -76,24 +76,50 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Validate CV requirement
+      if (!cvFile && !hasExistingCV) {
+        throw new Error("Please upload your CV/Resume");
+      }
+
       // For MVP, we skip real file upload and just use a placeholder URL if a file is selected
       // In a real app, you would upload 'cvFile' to Supabase Storage here.
       const cvUrl = cvFile ? `https://fake-storage.com/${cvFile.name}` : currentUser?.cvUrl || '';
+
+      console.log('📝 Submitting application with data:', {
+        job_id: job.id,
+        seeker_id: user.id,
+        full_name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        experience: formData.experience,
+        cv_url: cvUrl,
+        cover_letter: formData.coverLetter || null,
+        status: 'pending'
+      });
 
       const { error } = await supabase
         .from('applications')
         .insert({
           job_id: job.id,
           seeker_id: user.id,
+          full_name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          experience: formData.experience,
+          cv_url: cvUrl,
+          cover_letter: formData.coverLetter || null,
           status: 'pending'
         });
 
       if (error) {
+        console.error('❌ Error inserting application:', error);
         if (error.code === '23505') { // Unique violation
           throw new Error("You have already applied for this job.");
         }
         throw error;
       }
+
+      console.log('✅ Application submitted successfully!');
 
       toast({
         title: 'Application Submitted!',
@@ -102,7 +128,7 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
 
       onClose();
     } catch (error: any) {
-      console.error(error);
+      console.error('❌ Application submission error:', error);
       toast({
         title: 'Application Failed',
         description: error.message,

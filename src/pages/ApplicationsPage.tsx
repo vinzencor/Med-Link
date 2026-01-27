@@ -25,20 +25,31 @@ const ApplicationsPage: React.FC = () => {
   React.useEffect(() => {
     const fetchApplications = async () => {
       try {
+        console.log('📋 Fetching applications...');
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          console.log('❌ No user found');
+          return;
+        }
 
+        console.log('👤 Fetching applications for user:', user.id);
         const { data, error } = await supabase
           .from('applications')
           .select('*, job:jobs(*)')
           .eq('seeker_id', user.id)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Error fetching applications:', error);
+          throw error;
+        }
+
+        console.log('✅ Applications fetched:', data?.length || 0, 'applications');
+        console.log('📊 Applications data:', data);
         setUserApplications(data || []);
 
       } catch (error) {
-        console.error(error);
+        console.error('❌ Unexpected error:', error);
       } finally {
         setLoading(false);
       }
