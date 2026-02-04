@@ -1,7 +1,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { checkSupabaseHealth, supabase } from '@/lib/supabase';
 import { UserRole } from '@/types';
 
 interface AuthContextType {
@@ -30,8 +30,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
     const [loading, setLoading] = useState(true);
 
+    const isFetchFailure = (error: unknown) => {
+        if (!error) return false;
+        const err = error as { message?: string; name?: string };
+        const message = err.message ?? '';
+        return err.name === 'AuthRetryableFetchError'
+            || message.includes('Failed to fetch')
+            || message.includes('NetworkError');
+    };
+
+    const clearLocalSession = async () => {
+        try {
+            await supabase.auth.signOut({ scope: 'local' });
+        } catch (error) {
+            console.error('❌ Error clearing local session:', error);
+        }
+    };
+
     useEffect(() => {
         let isInitialized = false;
+        let subscription: { unsubscribe: () => void } | null = null;
+        let isCancelled = false;
 
         const fetchProfile = async (userId: string) => {
             try {
@@ -72,6 +91,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const initializeAuth = async () => {
             try {
                 console.log('🔄 Initializing auth...');
+                if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                    console.warn('⚠️ Offline: skipping auth initialization');
+                    setLoading(false);
+                    return false;
+                }
+
+                const isHealthy = await checkSupabaseHealth();
+                if (!isHealthy) {
+                    console.warn('⚠️ Supabase unreachable: skipping auth initialization');
+                    setLoading(false);
+                    return false;
+                }
                 const { data: { session }, error } = await supabase.auth.getSession();
 
                 if (error) {
@@ -92,6 +123,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 }
             } catch (error: any) {
                 console.error('❌ Error initializing auth:', error);
+                if (isFetchFailure(error)) {
+                    console.warn('⚠️ Fetch failed during auth init. Clearing local session cache.');
+                    await clearLocalSession();
+                }
                 // Clear session on error
                 setSession(null);
                 setUser(null);
@@ -102,40 +137,52 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 isInitialized = true;
                 setLoading(false);
             }
+
+            return true;
         };
 
-        initializeAuth();
+        const start = async () => {
+            const initialized = await initializeAuth();
+            if (!initialized || isCancelled) return;
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            console.log('🔔 Auth state changed:', _event, session?.user?.id, 'isInitialized:', isInitialized);
+            const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+                console.log('🔔 Auth state changed:', _event, session?.user?.id, 'isInitialized:', isInitialized);
 
-            // Skip SIGNED_IN event during initialization to avoid race condition
-            if (_event === 'SIGNED_IN' && !isInitialized) {
-                console.log('⏭️ Skipping SIGNED_IN during initialization');
-                return;
-            }
-
-            if (_event === 'SIGNED_OUT') {
-                setSession(null);
-                setUser(null);
-                setRole(null);
-                localStorage.removeItem('user_role');
-                setLoading(false);
-            } else if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED') {
-                setSession(session);
-                setUser(session?.user ?? null);
-                if (session?.user) {
-                    await fetchProfile(session.user.id);
+                // Skip SIGNED_IN event during initialization to avoid race condition
+                if (_event === 'SIGNED_IN' && !isInitialized) {
+                    console.log('⏭️ Skipping SIGNED_IN during initialization');
+                    return;
                 }
-                setLoading(false);
-            } else if (_event === 'INITIAL_SESSION') {
-                // This event fires when the auth listener is first set up
-                // We don't need to do anything here as initializeAuth handles it
-                console.log('📍 Initial session event (handled by initializeAuth)');
-            }
-        });
 
-        return () => subscription.unsubscribe();
+                if (_event === 'SIGNED_OUT') {
+                    setSession(null);
+                    setUser(null);
+                    setRole(null);
+                    localStorage.removeItem('user_role');
+                    setLoading(false);
+                } else if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED') {
+                    setSession(session);
+                    setUser(session?.user ?? null);
+                    if (session?.user) {
+                        await fetchProfile(session.user.id);
+                    }
+                    setLoading(false);
+                } else if (_event === 'INITIAL_SESSION') {
+                    // This event fires when the auth listener is first set up
+                    // We don't need to do anything here as initializeAuth handles it
+                    console.log('📍 Initial session event (handled by initializeAuth)');
+                }
+            });
+
+            subscription = data.subscription;
+        };
+
+        start();
+
+        return () => {
+            isCancelled = true;
+            subscription?.unsubscribe();
+        };
     }, []);
 
     const signOut = async () => {

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, Job, SavedJob, JobApplication, UserRole } from '@/types';
 import { mockJobs, mockUser, mockRecruiter, mockSavedJobs, mockApplications } from '@/data/mockData';
-import { supabase } from '@/lib/supabase';
+import { checkSupabaseHealth, supabase } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 
 interface AppContextType {
@@ -81,6 +81,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return;
       }
 
+      const isHealthy = await checkSupabaseHealth();
+      if (!isHealthy) {
+        console.warn('⚠️ Supabase unreachable: using cached saved jobs');
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from('saved_jobs')
@@ -114,6 +120,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       let isMounted = true;
       try {
         setJobsLoading(true);
+
+        const isHealthy = await checkSupabaseHealth();
+        if (!isHealthy) {
+          console.warn('⚠️ Supabase unreachable: using mock jobs');
+          if (isMounted) {
+            setJobs(mockJobs);
+          }
+          return;
+        }
 
         const { data, error } = await supabase
           .from('jobs')
