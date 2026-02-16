@@ -56,8 +56,10 @@ const RegisterPage = () => {
                 // Redirect based on role
                 if (role === 'recruiter') {
                     navigate('/dashboard');
-                } else {
+                } else if (role === 'job_seeker' || role === 'student') {
                     navigate('/feed');
+                } else {
+                    navigate('/feed'); // Default to feed
                 }
             } else {
                 toast({
@@ -129,7 +131,7 @@ const RegisterPage = () => {
                             />
                         </div>
 
-                        {role === 'job_seeker' && (
+                        {(role === 'job_seeker' || role === 'student') && (
                             <div>
                                 <Label htmlFor="cv">Upload CV (Optional)</Label>
                                 <Input
@@ -147,10 +149,14 @@ const RegisterPage = () => {
                         {!searchParamsRole && (
                             <div className="pt-2">
                                 <Label className="text-base">I am a...</Label>
-                                <RadioGroup defaultValue="job_seeker" value={role} onValueChange={(val) => setRole(val as UserRole)} className="mt-2 flex space-x-4">
+                                <RadioGroup defaultValue="job_seeker" value={role} onValueChange={(val) => setRole(val as UserRole)} className="mt-2 space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="student" id="r-student" />
+                                        <Label htmlFor="r-student">Student</Label>
+                                    </div>
                                     <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="job_seeker" id="r-seeker" />
-                                        <Label htmlFor="r-seeker">Job Seeker</Label>
+                                        <Label htmlFor="r-seeker">Professional</Label>
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="recruiter" id="r-recruiter" />

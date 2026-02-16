@@ -26,9 +26,9 @@ export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
     }
 
     if (!user) {
-        console.log('❌ No user, redirecting to get-started');
-        // Redirect to landing page or login if not authenticated
-        return <Navigate to="/get-started" replace />;
+        console.log('❌ No user, redirecting to login');
+        // Redirect to login page if not authenticated
+        return <Navigate to="/login" replace />;
     }
 
     // If user exists but role is still loading, show loading
@@ -49,7 +49,7 @@ export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
         // Redirect based on role if they try to access unauthorized area
         if (role === 'admin') return <Navigate to="/admin/dashboard" replace />;
         if (role === 'recruiter') return <Navigate to="/dashboard" replace />;
-        if (role === 'job_seeker') return <Navigate to="/feed" replace />;
+        if (role === 'job_seeker' || role === 'student') return <Navigate to="/feed" replace />;
         return <Navigate to="/" replace />;
     }
 

@@ -1,4 +1,4 @@
-export type UserRole = 'recruiter' | 'job_seeker' | 'admin';
+export type UserRole = 'recruiter' | 'job_seeker' | 'admin' | 'student';
 
 export type SubscriptionPlan = 'starter' | 'professional' | 'enterprise';
 

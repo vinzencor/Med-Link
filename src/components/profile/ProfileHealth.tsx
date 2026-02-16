@@ -1,24 +1,61 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Progress } from "@/components/ui/progress";
 import { User } from '@/types';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 
 interface ProfileHealthProps {
     user: User;
 }
 
 export const ProfileHealth: React.FC<ProfileHealthProps> = ({ user }) => {
-    // Calculate score based on filled fields
+    const { user: authUser } = useAuth();
+    const [verifiedDocsCount, setVerifiedDocsCount] = useState(0);
+    const [totalDocsCount, setTotalDocsCount] = useState(0);
+
+    useEffect(() => {
+        fetchDocumentStats();
+    }, [authUser]);
+
+    const fetchDocumentStats = async () => {
+        if (!authUser) return;
+
+        try {
+            const { data, error } = await supabase
+                .from('user_documents')
+                .select('status')
+                .eq('user_id', authUser.id);
+
+            if (error) throw error;
+
+            setTotalDocsCount(data?.length || 0);
+            setVerifiedDocsCount(data?.filter(doc => doc.status === 'verified').length || 0);
+        } catch (error) {
+            console.error('Error fetching document stats:', error);
+        }
+    };
+
+    // Calculate score based on filled fields and documents
     const calculateScore = () => {
         let score = 0;
-        const totalWeight = 100;
 
-        if (user.name) score += 20;
-        if (user.email) score += 20;
+        // Basic profile fields (60%)
+        if (user.name) score += 15;
+        if (user.email) score += 15;
         if (user.phone) score += 10;
         if (user.bio) score += 10;
-        if (user.experience) score += 20; // Heavier weight for job seekers
+        if (user.experience) score += 10;
+
+        // CV upload (20%)
         if (user.cvUrl) score += 20;
+
+        // Document verification (20%)
+        if (verifiedDocsCount > 0) {
+            // Give points based on verified documents
+            // 1 verified doc = 10 points, 2+ verified docs = 20 points
+            score += Math.min(verifiedDocsCount * 10, 20);
+        }
 
         return Math.min(score, 100);
     };
@@ -31,6 +68,8 @@ export const ProfileHealth: React.FC<ProfileHealthProps> = ({ user }) => {
         if (!user.bio) missing.push("Add Bio");
         if (!user.experience) missing.push("Add Experience");
         if (!user.cvUrl) missing.push("Upload CV");
+        if (totalDocsCount === 0) missing.push("Upload verification documents (License, ID)");
+        if (totalDocsCount > 0 && verifiedDocsCount === 0) missing.push("Wait for document verification");
         return missing;
     };
 

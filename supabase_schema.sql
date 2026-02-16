@@ -2,7 +2,8 @@
 create extension if not exists "uuid-ossp";
 
 -- Create Enum for User Roles
-create type user_role as enum ('recruiter', 'job_seeker', 'admin');
+-- Note: 'student' role was added via ALTER TYPE command
+create type user_role as enum ('recruiter', 'job_seeker', 'admin', 'student');
 
 -- Create Profiles Table
 create table public.profiles (

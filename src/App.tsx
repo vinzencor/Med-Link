@@ -13,6 +13,10 @@ import LandingPage from "./pages/LandingPage";
 import GetStartedPage from "./pages/GetStartedPage"; // Keeping for reference, but Auth is main entry
 import PricingPage from "./pages/PricingPage";
 import LoginPage from "./pages/auth/LoginPage";
+import LoginSelectionPage from "./pages/auth/LoginSelectionPage";
+import StudentLoginPage from "./pages/auth/StudentLoginPage";
+import ProfessionalLoginPage from "./pages/auth/ProfessionalLoginPage";
+import RecruiterLoginPage from "./pages/auth/RecruiterLoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import AdminLoginPage from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -40,7 +44,11 @@ const App = () => (
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
-              <Route path="/login" element={<LoginPage />} />
+              <Route path="/login" element={<LoginSelectionPage />} />
+              <Route path="/login/student" element={<StudentLoginPage />} />
+              <Route path="/login/professional" element={<ProfessionalLoginPage />} />
+              <Route path="/login/recruiter" element={<RecruiterLoginPage />} />
+              <Route path="/login/legacy" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/get-started" element={<GetStartedPage />} />
               <Route path="/pricing" element={<PricingPage />} />
@@ -58,8 +66,8 @@ const App = () => (
                 <Route path="/applicants" element={<ApplicantsPage />} />
               </Route>
 
-              {/* Job Seeker Routes */}
-              <Route element={<ProtectedRoute allowedRoles={['job_seeker']} />}>
+              {/* Job Seeker and Student Routes */}
+              <Route element={<ProtectedRoute allowedRoles={['job_seeker', 'student']} />}>
                 <Route path="/feed" element={<JobFeedPage />} />
                 <Route path="/saved" element={<SavedJobsPage />} />
                 <Route path="/applications" element={<ApplicationsPage />} />

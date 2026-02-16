@@ -26,8 +26,10 @@ const LoginPage = () => {
                 navigate('/dashboard', { replace: true });
             } else if (role === 'admin') {
                 navigate('/admin/dashboard', { replace: true });
+            } else if (role === 'job_seeker' || role === 'student') {
+                navigate('/feed', { replace: true });
             } else {
-                // Default to job feed for job_seekers or if role is missing
+                // Default to job feed if role is missing
                 navigate('/feed', { replace: true });
             }
         }

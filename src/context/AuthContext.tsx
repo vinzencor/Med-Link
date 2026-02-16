@@ -55,11 +55,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const fetchProfile = async (userId: string) => {
             try {
                 console.log('🔍 Fetching profile for user:', userId);
-                const { data, error } = await supabase
+
+                // Add timeout to prevent hanging
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+                );
+
+                const fetchPromise = supabase
                     .from('profiles')
                     .select('role')
                     .eq('id', userId)
                     .single();
+
+                const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
                 if (error) {
                     console.error('❌ Error fetching profile:', error);
@@ -83,7 +91,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 // Fallback to cached role
                 const cachedRole = localStorage.getItem('user_role') as UserRole | null;
                 if (cachedRole) {
+                    console.log('📦 Using cached role:', cachedRole);
                     setRole(cachedRole);
+                } else {
+                    // If no cached role, default to job_seeker to prevent infinite loading
+                    console.log('⚠️ No cached role, defaulting to job_seeker');
+                    setRole('job_seeker');
+                    localStorage.setItem('user_role', 'job_seeker');
                 }
             }
         };
@@ -97,13 +111,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     return false;
                 }
 
-                const isHealthy = await checkSupabaseHealth();
+                // Add timeout for health check
+                const healthCheckPromise = checkSupabaseHealth();
+                const healthTimeout = new Promise<boolean>((resolve) =>
+                    setTimeout(() => {
+                        console.warn('⚠️ Health check timeout, assuming healthy');
+                        resolve(true);
+                    }, 3000)
+                );
+
+                const isHealthy = await Promise.race([healthCheckPromise, healthTimeout]);
                 if (!isHealthy) {
                     console.warn('⚠️ Supabase unreachable: skipping auth initialization');
                     setLoading(false);
                     return false;
                 }
-                const { data: { session }, error } = await supabase.auth.getSession();
+
+                // Add timeout for session retrieval
+                const sessionPromise = supabase.auth.getSession();
+                const sessionTimeout = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Session fetch timeout')), 5000)
+                );
+
+                const { data: { session }, error } = await Promise.race([sessionPromise, sessionTimeout]) as any;
 
                 if (error) {
                     console.error('❌ Error getting session:', error);
