@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { validateCV } from '@/lib/ai-verification';
 import {
   Dialog,
   DialogContent,
@@ -16,11 +17,16 @@ import {
   FileText,
   CheckCircle,
   Building2,
-  AlertCircle
+  AlertCircle,
+  Video,
+  Loader2,
+  ShieldCheck,
+  XCircle
 } from 'lucide-react';
 import { Job, JobApplication } from '@/types';
 import { useApp } from '@/context/AppContext';
 import { useToast } from '@/hooks/use-toast';
+import { Link } from 'react-router-dom';
 
 interface ApplyModalProps {
   job: Job | null;
@@ -32,7 +38,14 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
   const { currentUser, applyToJob, updateUserCV } = useApp();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isValidatingCV, setIsValidatingCV] = useState(false);
   const [cvFile, setCvFile] = useState<File | null>(null);
+  const [cvValidationResult, setCvValidationResult] = useState<{
+    isValid: boolean;
+    confidence: number;
+    quality?: string;
+    issues?: string[];
+  } | null>(null);
   const [formData, setFormData] = useState({
     name: currentUser?.name || '',
     email: currentUser?.email || '',
@@ -44,27 +57,83 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
   if (!job) return null;
 
   const hasExistingCV = !!currentUser?.cvUrl;
+  const hasApprovedVideo = currentUser?.videoStatus === 'approved';
+  const hasVideoUploaded = !!currentUser?.videoUrl;
+  const isJobSeeker = currentUser?.role === 'job_seeker' || currentUser?.role === 'student';
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.type !== 'application/pdf') {
+    if (!file) return;
+
+    // Basic validation
+    if (file.type !== 'application/pdf') {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload a PDF file',
+        variant: 'destructive'
+      });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please upload a file smaller than 5MB',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // AI-powered ATS validation
+    setIsValidatingCV(true);
+    setCvValidationResult(null);
+
+    try {
+      toast({
+        title: 'Validating CV...',
+        description: 'AI is analyzing your document to ensure it\'s a valid resume',
+      });
+
+      const result = await validateCV(file);
+
+      if (!result.isCV || result.confidence < 70) {
+        // Reject non-CV files
         toast({
-          title: 'Invalid file type',
-          description: 'Please upload a PDF file',
+          title: 'Invalid Document',
+          description: 'The uploaded file does not appear to be a valid CV/Resume. Please upload your actual resume.',
           variant: 'destructive'
         });
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: 'File too large',
-          description: 'Please upload a file smaller than 5MB',
-          variant: 'destructive'
+        setCvValidationResult({
+          isValid: false,
+          confidence: result.confidence,
+          issues: result.issues
         });
+        e.target.value = ''; // Reset file input
         return;
       }
+
+      // CV is valid
       setCvFile(file);
+      setCvValidationResult({
+        isValid: true,
+        confidence: result.confidence,
+        quality: result.quality,
+        issues: result.issues
+      });
+
+      toast({
+        title: 'CV Validated ✓',
+        description: `Your resume has been verified (${result.confidence}% confidence, ${result.quality} quality)`,
+      });
+    } catch (error: any) {
+      console.error('CV validation error:', error);
+      toast({
+        title: 'Validation Error',
+        description: 'Could not validate CV. Please try again or contact support.',
+        variant: 'destructive'
+      });
+      e.target.value = ''; // Reset file input
+    } finally {
+      setIsValidatingCV(false);
     }
   };
 
@@ -74,16 +143,29 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      if (!user) throw new Error('Not authenticated');
 
       // Validate CV requirement
       if (!cvFile && !hasExistingCV) {
-        throw new Error("Please upload your CV/Resume");
+        throw new Error('Please upload your CV/Resume');
       }
 
-      // For MVP, we skip real file upload and just use a placeholder URL if a file is selected
-      // In a real app, you would upload 'cvFile' to Supabase Storage here.
-      const cvUrl = cvFile ? `https://fake-storage.com/${cvFile.name}` : currentUser?.cvUrl || '';
+      // Upload CV to Supabase Storage if a new file is selected
+      let cvUrl = currentUser?.cvUrl || '';
+      if (cvFile) {
+        const path = `${user.id}/${job.id}/${Date.now()}_cv.pdf`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('application-cvs')
+          .upload(path, cvFile, { upsert: true });
+        if (uploadError) {
+          console.warn('CV upload failed, using existing CV:', uploadError.message);
+        } else {
+          const { data: { publicUrl } } = supabase.storage.from('application-cvs').getPublicUrl(uploadData.path);
+          cvUrl = publicUrl;
+          // Also update the user's profile CV
+          updateUserCV(cvUrl);
+        }
+      }
 
       console.log('📝 Submitting application with data:', {
         job_id: job.id,
@@ -94,7 +176,10 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
         experience: formData.experience,
         cv_url: cvUrl,
         cover_letter: formData.coverLetter || null,
-        status: 'pending'
+        status: 'pending',
+        cv_ai_validated: cvValidationResult?.isValid || false,
+        cv_ai_confidence: cvValidationResult?.confidence || 0,
+        cv_quality: cvValidationResult?.quality || null
       });
 
       const { error } = await supabase
@@ -108,7 +193,10 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
           experience: formData.experience,
           cv_url: cvUrl,
           cover_letter: formData.coverLetter || null,
-          status: 'pending'
+          status: 'pending',
+          cv_ai_validated: cvValidationResult?.isValid || false,
+          cv_ai_confidence: cvValidationResult?.confidence || 0,
+          cv_quality: cvValidationResult?.quality || null
         });
 
       if (error) {
@@ -157,6 +245,33 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
             </div>
           </div>
         </DialogHeader>
+
+        {/* Mandatory video gate */}
+        {isJobSeeker && !hasVideoUploaded && (
+          <div className="flex items-start gap-3 p-4 bg-destructive/5 border border-destructive/20 rounded-lg my-2">
+            <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-destructive text-sm">Introduction Video Required</p>
+              <p className="text-xs text-muted-foreground mt-0.5">You must upload a self-introduction video before applying.</p>
+              <Button size="sm" variant="outline" className="mt-2 text-destructive border-destructive/30" asChild>
+                <Link to="/profile" onClick={onClose}>
+                  <Video className="w-3 h-3 mr-1" />
+                  Upload Video on Profile Page
+                </Link>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isJobSeeker && hasVideoUploaded && !hasApprovedVideo && (
+          <div className="flex items-start gap-3 p-4 bg-warning/5 border border-warning/20 rounded-lg my-2">
+            <AlertCircle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-warning text-sm">Video Pending Approval</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Your introduction video is awaiting admin review. You can still submit your application and it will be held pending video approval.</p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           {/* Personal Info */}
@@ -212,7 +327,7 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
           <div className="space-y-2">
             <Label>Resume/CV *</Label>
             {hasExistingCV ? (
-              <div className="p-4 border border-border rounded-lg bg-success/5 border-success/20">
+              <div className="p-4 border rounded-lg bg-success/5 border-success/20">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
                     <CheckCircle className="w-5 h-5 text-success" />
@@ -236,23 +351,62 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
               </div>
             ) : (
               <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-                {cvFile ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <FileText className="w-8 h-8 text-primary" />
-                    <div className="text-left">
-                      <p className="font-medium">{cvFile.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {(cvFile.size / 1024).toFixed(0)} KB
-                      </p>
+                {isValidatingCV ? (
+                  <div className="flex flex-col items-center gap-3 py-4">
+                    <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                    <div>
+                      <p className="font-medium">Validating your CV...</p>
+                      <p className="text-sm text-muted-foreground mt-1">AI is analyzing your document</p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCvFile(null)}
-                    >
-                      Remove
-                    </Button>
+                  </div>
+                ) : cvFile && cvValidationResult?.isValid ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center gap-3">
+                      <FileText className="w-8 h-8 text-primary" />
+                      <div className="text-left flex-1">
+                        <p className="font-medium">{cvFile.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {(cvFile.size / 1024).toFixed(0)} KB
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setCvFile(null);
+                          setCvValidationResult(null);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
+                      <ShieldCheck className="w-5 h-5 text-success" />
+                      <div className="text-left text-sm">
+                        <p className="font-medium text-success">CV Verified by AI</p>
+                        <p className="text-xs text-muted-foreground">
+                          {cvValidationResult.confidence}% confidence • {cvValidationResult.quality} quality
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : cvValidationResult && !cvValidationResult.isValid ? (
+                  <div className="flex items-start gap-3 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <XCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                    <div className="text-left">
+                      <p className="font-semibold text-destructive">Invalid Document</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        This doesn't appear to be a valid CV/Resume. Please upload your actual resume.
+                      </p>
+                      {cvValidationResult.issues && cvValidationResult.issues.length > 0 && (
+                        <ul className="text-xs text-muted-foreground mt-2 space-y-1">
+                          {cvValidationResult.issues.map((issue, idx) => (
+                            <li key={idx}>• {issue}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <label className="cursor-pointer">
@@ -261,15 +415,17 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
                       accept=".pdf"
                       onChange={handleFileChange}
                       className="hidden"
+                      disabled={isValidatingCV}
                     />
                     <Upload className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
                     <p className="font-medium">Click to upload your CV</p>
                     <p className="text-sm text-muted-foreground mt-1">PDF format, max 5MB</p>
+                    <p className="text-xs text-primary mt-2">✓ AI-powered validation</p>
                   </label>
                 )}
               </div>
             )}
-            {cvFile && (
+            {cvFile && cvValidationResult?.isValid && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <AlertCircle className="w-4 h-4" />
                 <span>This CV will be saved for future applications</span>
@@ -294,8 +450,24 @@ const ApplyModal: React.FC<ApplyModalProps> = ({ job, open, onClose }) => {
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>
-            <Button type="submit" className="flex-1" disabled={isSubmitting}>
-              {isSubmitting ? 'Submitting...' : 'Submit Application'}
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={
+                isSubmitting ||
+                isValidatingCV ||
+                (isJobSeeker && !hasVideoUploaded) ||
+                (!hasExistingCV && !cvValidationResult?.isValid)
+              }
+              title={
+                isJobSeeker && !hasVideoUploaded
+                  ? 'Upload your introduction video first'
+                  : !hasExistingCV && !cvValidationResult?.isValid
+                  ? 'Please upload and validate your CV first'
+                  : undefined
+              }
+            >
+              {isSubmitting ? 'Submitting...' : isValidatingCV ? 'Validating CV...' : 'Submit Application'}
             </Button>
           </div>
         </form>

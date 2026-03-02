@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { User, Job, SavedJob, JobApplication, UserRole } from '@/types';
+import { User, Job, SavedJob, JobApplication, UserRole, Notification, VideoStatus, AddOn } from '@/types';
 import { mockJobs, mockUser, mockRecruiter, mockSavedJobs, mockApplications } from '@/data/mockData';
 import { checkSupabaseHealth, supabase } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
@@ -11,6 +11,8 @@ interface AppContextType {
   jobsLoading: boolean;
   savedJobs: SavedJob[];
   applications: JobApplication[];
+  notifications: Notification[];
+  unreadNotificationCount: number;
   setUserRole: (role: UserRole) => void;
   setCurrentUser: (user: User | null) => void;
   addJob: (job: Job) => void;
@@ -19,6 +21,14 @@ interface AppContextType {
   isJobSaved: (jobId: string) => boolean;
   hasApplied: (jobId: string) => boolean;
   updateUserCV: (cvUrl: string) => void;
+  updateUserProfile: (updates: Partial<User>) => Promise<void>;
+  updateVideoUrl: (videoUrl: string, status?: VideoStatus) => void;
+  updateAvatar: (avatarUrl: string) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+  addNotification: (n: Omit<Notification, 'id' | 'createdAt' | 'userId'>) => void;
+  purchaseAddOn: (addOn: Pick<AddOn, 'id' | 'name' | 'price'>) => void;
+  toggleAutoRenew: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -31,6 +41,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [jobsLoading, setJobsLoading] = useState(true);
   const [savedJobs, setSavedJobs] = useState<SavedJob[]>(mockSavedJobs);
   const [applications, setApplications] = useState<JobApplication[]>(mockApplications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // Sync AuthContext user to AppContext currentUser
   useEffect(() => {
@@ -257,6 +268,79 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const updateUserProfile = async (updates: Partial<User>) => {
+    if (!currentUser) return;
+    const dbUpdates: Record<string, any> = {};
+    if (updates.name !== undefined) dbUpdates.full_name = updates.name;
+    if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+    if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
+    if (updates.experience !== undefined) dbUpdates.experience = updates.experience;
+    if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
+    if (updates.videoUrl !== undefined) dbUpdates.video_url = updates.videoUrl;
+    if (updates.videoStatus !== undefined) dbUpdates.video_status = updates.videoStatus;
+    if (updates.cvUrl !== undefined) dbUpdates.cv_url = updates.cvUrl;
+
+    const isRealUser = /^[0-9a-f]{8}-[0-9a-f]{4}/.test(currentUser.id);
+    if (isRealUser && Object.keys(dbUpdates).length > 0) {
+      try {
+        await supabase.from('profiles').update(dbUpdates).eq('id', currentUser.id);
+      } catch (e) {
+        console.error('Profile update error:', e);
+      }
+    }
+    setCurrentUser({ ...currentUser, ...updates });
+  };
+
+  const updateVideoUrl = (videoUrl: string, status: VideoStatus = 'pending') => {
+    if (currentUser) {
+      setCurrentUser({ ...currentUser, videoUrl, videoStatus: status });
+    }
+  };
+
+  const updateAvatar = (avatarUrl: string) => {
+    if (currentUser) {
+      setCurrentUser({ ...currentUser, avatarUrl });
+    }
+  };
+
+  const unreadNotificationCount = notifications.filter(n => !n.read).length;
+
+  const markNotificationRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const addNotification = (n: Omit<Notification, 'id' | 'createdAt' | 'userId'>) => {
+    const newN: Notification = {
+      ...n,
+      userId: currentUser?.id ?? 'anon',
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    };
+    setNotifications(prev => [newN, ...prev]);
+  };
+
+  const purchaseAddOn = (addOn: Pick<AddOn, 'id' | 'name' | 'price'>) => {
+    if (!currentUser) return;
+    const existing = (currentUser.addOns || []).find(a => a.id === addOn.id);
+    const newAddOn: AddOn = { ...addOn, active: true, purchasedAt: new Date().toISOString() };
+    const updatedAddOns = existing
+      ? (currentUser.addOns || []).map(a => a.id === addOn.id ? newAddOn : a)
+      : [...(currentUser.addOns || []), newAddOn];
+    setCurrentUser({ ...currentUser, addOns: updatedAddOns });
+  };
+
+  const toggleAutoRenew = () => {
+    if (!currentUser?.subscription) return;
+    setCurrentUser({
+      ...currentUser,
+      subscription: { ...currentUser.subscription, autoRenew: !currentUser.subscription.autoRenew }
+    });
+  };
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -265,6 +349,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       jobsLoading,
       savedJobs,
       applications,
+      notifications,
+      unreadNotificationCount,
       setUserRole: handleSetUserRole,
       setCurrentUser,
       addJob,
@@ -272,7 +358,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       applyToJob,
       isJobSaved,
       hasApplied,
-      updateUserCV
+      updateUserCV,
+      updateUserProfile,
+      updateVideoUrl,
+      updateAvatar,
+      markNotificationRead,
+      markAllNotificationsRead,
+      addNotification,
+      purchaseAddOn,
+      toggleAutoRenew
     }}>
       {children}
     </AppContext.Provider>

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserDocument } from '@/types';
-import { Shield, ShieldAlert, ShieldCheck, FileText, Lock, Upload, Loader2 } from 'lucide-react';
+import { Shield, ShieldAlert, ShieldCheck, FileText, Lock, Upload, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { verifyDocument } from '@/lib/ai-verification';
 
 interface VerificationStatusProps {
     user: User;
@@ -88,39 +89,66 @@ export const VerificationStatus: React.FC<VerificationStatusProps> = ({ user }) 
         setUploading(true);
 
         try {
-            // Upload to Supabase Storage
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${authUser.id}/${Date.now()}.${fileExt}`;
+            // Determine document type from filename
+            const fileName = file.name.toLowerCase();
+            const documentType = fileName.includes('license') ? 'license' :
+                               fileName.includes('certificate') ? 'certificate' :
+                               fileName.includes('id') ? 'id' : 'other';
 
-            const { data: uploadData, error: uploadError } = await supabase.storage
+            // Step 1: AI Verification
+            toast({
+                title: "Verifying document...",
+                description: "AI is analyzing your document for authenticity",
+            });
+
+            const aiResult = await verifyDocument(file, documentType as any);
+
+            // Step 2: Upload to Supabase Storage
+            const fileExt = file.name.split('.').pop();
+            const storageFileName = `${authUser.id}/${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
                 .from('user-documents')
-                .upload(fileName, file);
+                .upload(storageFileName, file);
 
             if (uploadError) throw uploadError;
 
             // Get public URL
             const { data: { publicUrl } } = supabase.storage
                 .from('user-documents')
-                .getPublicUrl(fileName);
+                .getPublicUrl(storageFileName);
 
-            // Insert document record
+            // Step 3: Insert document record with AI verification data
             const { error: insertError } = await supabase
                 .from('user_documents')
                 .insert({
                     user_id: authUser.id,
                     name: file.name,
-                    type: file.name.toLowerCase().includes('license') ? 'license' :
-                          file.name.toLowerCase().includes('id') ? 'id' : 'other',
+                    type: documentType,
                     url: publicUrl,
-                    status: 'pending'
+                    status: aiResult.isValid && aiResult.confidence >= 80 ? 'pending' : 'rejected',
+                    ai_verified: aiResult.isValid,
+                    ai_confidence: aiResult.confidence,
+                    ai_analysis: aiResult.aiAnalysis,
+                    ai_extracted_data: aiResult.extractedData || {},
+                    ai_issues: aiResult.issues || [],
+                    rejection_reason: !aiResult.isValid ? 'AI verification failed: Document appears invalid or tampered' : null
                 });
 
             if (insertError) throw insertError;
 
-            toast({
-                title: "Document uploaded",
-                description: "Your document has been uploaded and is pending verification",
-            });
+            if (aiResult.isValid && aiResult.confidence >= 80) {
+                toast({
+                    title: "Document verified ✓",
+                    description: `Your ${documentType} has been verified by AI (${aiResult.confidence}% confidence) and is pending admin review`,
+                });
+            } else {
+                toast({
+                    title: "Verification failed",
+                    description: `Document verification failed. ${aiResult.issues?.join(', ') || 'Please upload a valid document.'}`,
+                    variant: "destructive",
+                });
+            }
 
             // Refresh documents list
             fetchDocuments();
@@ -217,25 +245,84 @@ export const VerificationStatus: React.FC<VerificationStatusProps> = ({ user }) 
                 ) : (
                     <div className="divide-y divide-slate-100">
                         {documents.map((doc) => (
-                            <div key={doc.id} className="p-4 flex items-center justify-between hover:bg-white transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded bg-blue-50 flex items-center justify-center">
-                                        <FileText className="w-5 h-5 text-blue-500" />
+                            <div key={doc.id} className="p-4 hover:bg-white transition-colors">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3 flex-1">
+                                        <div className="w-10 h-10 rounded bg-blue-50 flex items-center justify-center">
+                                            <FileText className="w-5 h-5 text-blue-500" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-medium text-sm text-slate-900">{doc.name}</p>
+                                            <p className="text-xs text-slate-500">Uploaded on {doc.uploadedAt}</p>
+                                            {doc.aiVerified && doc.aiConfidence && (
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                                    <span className="text-xs text-green-600">
+                                                        AI Verified ({doc.aiConfidence}% confidence)
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {doc.aiVerified === false && (
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <AlertTriangle className="w-3 h-3 text-red-600" />
+                                                    <span className="text-xs text-red-600">
+                                                        AI verification failed
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="font-medium text-sm text-slate-900">{doc.name}</p>
-                                        <p className="text-xs text-slate-500">Uploaded on {doc.uploadedAt}</p>
+                                    <div className="flex items-center gap-3">
+                                        <Badge variant="secondary" className={`capitalize ${
+                                            doc.status === 'verified' ? 'text-green-600 bg-green-50' :
+                                            doc.status === 'rejected' ? 'text-red-600 bg-red-50' :
+                                            'text-yellow-600 bg-yellow-50'
+                                        }`}>
+                                            {doc.status}
+                                        </Badge>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <Badge variant="secondary" className={`capitalize ${
-                                        doc.status === 'verified' ? 'text-green-600 bg-green-50' :
-                                        doc.status === 'rejected' ? 'text-red-600 bg-red-50' :
-                                        'text-yellow-600 bg-yellow-50'
-                                    }`}>
-                                        {doc.status}
-                                    </Badge>
-                                </div>
+                                {doc.aiExtractedData && Object.keys(doc.aiExtractedData).length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-slate-100">
+                                        <p className="text-xs font-medium text-slate-600 mb-2">Extracted Information:</p>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            {doc.aiExtractedData.name && (
+                                                <div>
+                                                    <span className="text-slate-500">Name:</span>
+                                                    <span className="ml-1 text-slate-900">{doc.aiExtractedData.name}</span>
+                                                </div>
+                                            )}
+                                            {doc.aiExtractedData.licenseNumber && (
+                                                <div>
+                                                    <span className="text-slate-500">License #:</span>
+                                                    <span className="ml-1 text-slate-900">{doc.aiExtractedData.licenseNumber}</span>
+                                                </div>
+                                            )}
+                                            {doc.aiExtractedData.expiryDate && (
+                                                <div>
+                                                    <span className="text-slate-500">Expires:</span>
+                                                    <span className="ml-1 text-slate-900">{doc.aiExtractedData.expiryDate}</span>
+                                                </div>
+                                            )}
+                                            {doc.aiExtractedData.issuingAuthority && (
+                                                <div>
+                                                    <span className="text-slate-500">Issued by:</span>
+                                                    <span className="ml-1 text-slate-900">{doc.aiExtractedData.issuingAuthority}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                                {doc.aiIssues && doc.aiIssues.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-slate-100">
+                                        <p className="text-xs font-medium text-red-600 mb-1">Issues Found:</p>
+                                        <ul className="text-xs text-slate-600 space-y-1">
+                                            {doc.aiIssues.map((issue, idx) => (
+                                                <li key={idx}>• {issue}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>

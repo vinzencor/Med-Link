@@ -9,9 +9,13 @@ import {
   Plus,
   LayoutDashboard,
   LogOut,
-  Settings
+  Settings,
+  ShoppingBag,
+  Check,
+  CheckCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -23,10 +27,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 const Header: React.FC = () => {
-  const { currentUser, userRole, setCurrentUser } = useApp();
+  const { currentUser, userRole, setCurrentUser, notifications, unreadNotificationCount, markNotificationRead, markAllNotificationsRead } = useApp();
   const { user, role, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -57,6 +66,7 @@ const Header: React.FC = () => {
     { path: '/feed', label: 'Jobs', icon: Search },
     { path: '/saved', label: 'Saved', icon: Bookmark },
     { path: '/applications', label: 'Applications', icon: Briefcase },
+    { path: '/marketplace', label: 'Marketplace', icon: ShoppingBag },
   ];
 
   const recruiterNav = [
@@ -127,10 +137,47 @@ const Header: React.FC = () => {
           <div className="flex items-center gap-3">
             {displayUser ? (
               <>
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="w-5 h-5" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
-                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon" className="relative">
+                      <Bell className="w-5 h-5" />
+                      {unreadNotificationCount > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">
+                          {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                        </span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80 p-0">
+                    <div className="flex items-center justify-between px-4 py-3 border-b">
+                      <p className="font-semibold text-sm">Notifications</p>
+                      {unreadNotificationCount > 0 && (
+                        <Button variant="ghost" size="sm" className="text-xs h-auto py-1" onClick={markAllNotificationsRead}>
+                          <CheckCheck className="w-3 h-3 mr-1" /> Mark all read
+                        </Button>
+                      )}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-6">No notifications yet</p>
+                      ) : (
+                        notifications.slice(0, 10).map(n => (
+                          <div
+                            key={n.id}
+                            onClick={() => markNotificationRead(n.id)}
+                            className={`flex gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 border-b last:border-0 ${!n.read ? 'bg-blue-50/60' : ''}`}
+                          >
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{n.title}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                            </div>
+                            {!n.read && <div className="w-2 h-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -74,11 +74,16 @@ const LoginSelectionPage = () => {
                     })}
                 </div>
 
-                <div className="mt-8 text-center">
+                <div className="mt-8 text-center space-y-2">
                     <p className="text-sm text-gray-600">
                         Don't have an account?{' '}
                         <a href="/register" className="font-medium text-blue-600 hover:text-blue-500">
                             Create an account
+                        </a>
+                    </p>
+                    <p className="text-xs text-gray-400">
+                        <a href="/admin/login/superuser" className="hover:text-gray-600">
+                            Admin Access
                         </a>
                     </p>
                 </div>

@@ -1,24 +1,28 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Eye } from 'lucide-react';
 
 interface PricingCardProps {
   name: string;
   price: number;
+  billingCycle?: 'monthly' | 'yearly';
   features: string[];
   recommended?: boolean;
   onSelect: () => void;
   buttonText?: string;
+  revealsPerMonth?: number;
 }
 
 const PricingCard: React.FC<PricingCardProps> = ({
   name,
   price,
+  billingCycle = 'monthly',
   features,
   recommended,
   onSelect,
-  buttonText = 'Get Started'
+  buttonText = 'Get Started',
+  revealsPerMonth
 }) => {
 
   return (
@@ -35,10 +39,19 @@ const PricingCard: React.FC<PricingCardProps> = ({
 
       <div className="text-center mb-6">
         <h3 className="text-xl font-bold">{name}</h3>
+        {revealsPerMonth !== undefined && (
+          <div className="flex items-center justify-center gap-1 mt-2 text-sm font-medium text-primary">
+            <Eye className="w-4 h-4" />
+            {revealsPerMonth === -1 ? 'Unlimited reveals' : `${revealsPerMonth} candidate reveals/mo`}
+          </div>
+        )}
         <div className="mt-4">
-          <span className="text-4xl font-bold">${price.toFixed(price < 100 ? 2 : 0)}</span>
-          <span className="text-muted-foreground">/month</span>
+          <span className="text-4xl font-bold">${billingCycle === 'yearly' ? price.toFixed(0) : price.toFixed(price < 100 ? 2 : 0)}</span>
+          <span className="text-muted-foreground">/{billingCycle === 'yearly' ? 'year' : 'month'}</span>
         </div>
+        {billingCycle === 'yearly' && (
+          <p className="text-xs text-success mt-1">2 months free vs monthly billing</p>
+        )}
       </div>
 
       <ul className="space-y-3 mb-6">
@@ -63,3 +76,4 @@ const PricingCard: React.FC<PricingCardProps> = ({
 };
 
 export default PricingCard;
+

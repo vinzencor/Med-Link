@@ -119,14 +119,15 @@ const PostJobPage: React.FC = () => {
           job_type: formData.type,
           category: formData.category,
           requirements: formData.requirements.filter(r => r.trim()),
-          benefits: formData.benefits.filter(b => b.trim())
+          benefits: formData.benefits.filter(b => b.trim()),
+          status: 'pending' // Job needs admin approval before going live
         });
 
       if (error) throw error;
 
       toast({
-        title: 'Job Posted Successfully!',
-        description: 'Your job listing is now live and visible to job seekers.',
+        title: 'Job Submitted for Approval!',
+        description: 'Your job listing has been submitted and is pending admin approval. You will be notified once it is reviewed.',
       });
 
       navigate('/dashboard');

@@ -11,9 +11,15 @@ import PricingCard from '@/components/subscription/PricingCard';
 
 const PricingPage: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<'job_seeker' | 'recruiter'>('job_seeker');
+  const [isYearly, setIsYearly] = useState(false);
   const navigate = useNavigate();
 
   const plans = selectedRole === 'recruiter' ? subscriptionPlans.recruiter : subscriptionPlans.jobSeeker;
+
+  const getDisplayPrice = (price: number) => {
+    if (isYearly) return Math.round(price * 10);
+    return price;
+  };
 
   const handleSelectPlan = () => {
     navigate('/get-started');
@@ -72,16 +78,31 @@ const PricingPage: React.FC = () => {
           </TabsList>
         </Tabs>
 
+        {/* Billing Cycle Toggle */}
+        <div className="flex items-center justify-center gap-4 mb-10">
+          <span className={`text-sm font-medium ${!isYearly ? 'text-foreground' : 'text-muted-foreground'}`}>Monthly</span>
+          <Switch
+            checked={isYearly}
+            onCheckedChange={setIsYearly}
+          />
+          <span className={`text-sm font-medium ${isYearly ? 'text-foreground' : 'text-muted-foreground'}`}>
+            Yearly
+            <span className="ml-2 text-xs bg-success/10 text-success px-2 py-0.5 rounded-full font-semibold">Save 2 months</span>
+          </span>
+        </div>
+
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8 mb-16">
-          {plans.map((plan) => (
+          {plans.map((plan: any) => (
             <PricingCard
               key={plan.id}
               name={plan.name}
-              price={plan.price}
+              price={getDisplayPrice(plan.price)}
+              billingCycle={isYearly ? 'yearly' : 'monthly'}
               features={plan.features}
               recommended={plan.recommended}
               onSelect={handleSelectPlan}
+              revealsPerMonth={'revealsPerMonth' in plan ? plan.revealsPerMonth : undefined}
             />
           ))}
         </div>

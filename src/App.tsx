@@ -30,6 +30,8 @@ import RecruiterDashboard from "./pages/RecruiterDashboard";
 import PostJobPage from "./pages/PostJobPage";
 import ApplicantsPage from "./pages/ApplicantsPage";
 import NotFound from "./pages/NotFound";
+import MarketplacePage from "./pages/MarketplacePage";
+import { ConsentModal } from "@/components/ConsentModal";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +42,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <ConsentModal />
           <BrowserRouter>
             <Routes>
               {/* Public Routes */}
@@ -71,6 +74,7 @@ const App = () => (
                 <Route path="/feed" element={<JobFeedPage />} />
                 <Route path="/saved" element={<SavedJobsPage />} />
                 <Route path="/applications" element={<ApplicationsPage />} />
+                <Route path="/marketplace" element={<MarketplacePage />} />
               </Route>
 
               {/* Shared Protected Routes */}

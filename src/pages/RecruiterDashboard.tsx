@@ -4,6 +4,7 @@ import { useApp } from '@/context/AppContext';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Link } from 'react-router-dom';
 import {
   Briefcase,
@@ -13,9 +14,11 @@ import {
   Plus,
   Clock,
   ArrowRight,
-  Building2
+  Building2,
+  Zap
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import EmployerAddOns from '@/components/subscription/EmployerAddOns';
 
 const RecruiterDashboard: React.FC = () => {
   const { currentUser } = useApp();
@@ -61,14 +64,23 @@ const RecruiterDashboard: React.FC = () => {
 
   const totalApplications = applications;
   const pendingApplications = applications.filter(a => a.status === 'pending');
+  const approvedJobs = recruiterJobs.filter(j => j.status === 'approved');
+  const pendingJobs = recruiterJobs.filter(j => j.status === 'pending');
 
   const stats = [
     {
-      label: 'Active Jobs',
-      value: recruiterJobs.filter(j => j.isActive).length,
+      label: 'Approved Jobs',
+      value: approvedJobs.length,
       icon: Briefcase,
       color: 'text-primary',
       bg: 'bg-primary/10'
+    },
+    {
+      label: 'Pending Approval',
+      value: pendingJobs.length,
+      icon: Clock,
+      color: 'text-warning',
+      bg: 'bg-warning/10'
     },
     {
       label: 'Total Applicants',
@@ -80,14 +92,7 @@ const RecruiterDashboard: React.FC = () => {
     {
       label: 'Pending Review',
       value: pendingApplications.length,
-      icon: Clock,
-      color: 'text-warning',
-      bg: 'bg-warning/10'
-    },
-    {
-      label: 'Total Views',
-      value: 0, // Views tracking not implemented yet
-      icon: Eye,
+      icon: TrendingUp,
       color: 'text-accent',
       bg: 'bg-accent/10'
     },
@@ -172,8 +177,13 @@ const RecruiterDashboard: React.FC = () => {
                               <h3 className="font-medium truncate">{job.title}</h3>
                               <p className="text-sm text-muted-foreground">{job.location}</p>
                             </div>
-                            <Badge variant={'default'}>
-                              Active
+                            <Badge className={
+                              job.status === 'pending' ? 'bg-orange-500' :
+                              job.status === 'approved' ? 'bg-green-500' :
+                              job.status === 'rejected' ? 'bg-red-500' :
+                              'bg-blue-500'
+                            }>
+                              {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1) : 'Active'}
                             </Badge>
                           </div>
                           <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
@@ -245,20 +255,47 @@ const RecruiterDashboard: React.FC = () => {
 
             {/* Subscription Card */}
             <div className="card-elevated p-5 mt-6 bg-gradient-to-br from-primary/5 to-accent/5">
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                   <TrendingUp className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-semibold">{currentUser?.subscription?.plan || 'Starter'} Plan</p>
-                  <p className="text-sm text-muted-foreground">
-                    {currentUser?.subscription?.jobPostsRemaining === undefined
-                      ? 'Unlimited posts'
-                      : `${currentUser?.subscription?.jobPostsRemaining} posts left`
-                    }
-                  </p>
+                  <p className="font-semibold capitalize">{currentUser?.subscription?.plan || 'Starter'} Plan</p>
+                  <p className="text-xs text-muted-foreground">{currentUser?.subscription?.billingCycle || 'monthly'} billing</p>
                 </div>
               </div>
+
+              {/* Reveals counter */}
+              {currentUser?.subscription?.revealsTotal !== undefined && (
+                <div className="mb-4 p-3 bg-background rounded-lg border border-border">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5 text-sm font-medium">
+                      <Eye className="w-4 h-4 text-primary" />
+                      Candidate Reveals
+                    </div>
+                    <span className="text-sm font-bold">
+                      {currentUser.subscription.revealsUsed ?? 0}
+                      <span className="text-muted-foreground font-normal">
+                        /{currentUser.subscription.revealsTotal === -1 ? '∞' : currentUser.subscription.revealsTotal}
+                      </span>
+                    </span>
+                  </div>
+                  {currentUser.subscription.revealsTotal !== -1 && (
+                    <Progress
+                      value={((currentUser.subscription.revealsUsed ?? 0) / currentUser.subscription.revealsTotal) * 100}
+                      className="h-1.5"
+                    />
+                  )}
+                  {currentUser.subscription.revealsTotal !== -1 &&
+                   (currentUser.subscription.revealsRemaining ?? currentUser.subscription.revealsTotal) <= 3 && (
+                    <p className="text-xs text-warning mt-1.5 flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      Only {currentUser.subscription.revealsRemaining ?? 0} reveal{currentUser.subscription.revealsRemaining === 1 ? '' : 's'} remaining this cycle
+                    </p>
+                  )}
+                </div>
+              )}
+
               <Button variant="outline" className="w-full" asChild>
                 <Link to="/subscription">
                   Manage Subscription
@@ -266,6 +303,9 @@ const RecruiterDashboard: React.FC = () => {
                 </Link>
               </Button>
             </div>
+
+            {/* Employer Add-Ons */}
+            <EmployerAddOns />
           </div>
         </div>
       </main>

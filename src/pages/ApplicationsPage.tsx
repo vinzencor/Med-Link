@@ -16,11 +16,15 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
+import JobDetailsModal from '@/components/jobs/JobDetailsModal';
+import { Job } from '@/types';
 
 const ApplicationsPage: React.FC = () => {
   const { currentUser } = useApp();
   const [userApplications, setUserApplications] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [selectedJob, setSelectedJob] = React.useState<Job | null>(null);
+  const [jobModalOpen, setJobModalOpen] = React.useState(false);
 
   React.useEffect(() => {
     const fetchApplications = async () => {
@@ -145,7 +149,33 @@ const ApplicationsPage: React.FC = () => {
                         <span className="text-sm text-muted-foreground">
                           Applied {formatDistanceToNow(new Date(application.created_at), { addSuffix: true })}
                         </span>
-                        <Button variant="ghost" size="sm">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (job) {
+                              const mappedJob: Job = {
+                                id: job.id,
+                                title: job.title,
+                                company: job.company_name || job.company || 'Company',
+                                location: job.location || '',
+                                type: job.job_type || 'full-time',
+                                salary: { min: 50000, max: 80000, period: 'yearly' },
+                                description: job.description || '',
+                                requirements: job.requirements || [],
+                                benefits: job.benefits || [],
+                                category: job.category || '',
+                                postedAt: job.created_at,
+                                expiresAt: job.expires_at || job.created_at,
+                                recruiterId: job.recruiter_id || '',
+                                applicationsCount: 0,
+                                isActive: true
+                              };
+                              setSelectedJob(mappedJob);
+                              setJobModalOpen(true);
+                            }
+                          }}
+                        >
                           View Details
                         </Button>
                       </div>
@@ -157,6 +187,13 @@ const ApplicationsPage: React.FC = () => {
           </div>
         )}
       </main>
+
+      <JobDetailsModal
+        job={selectedJob}
+        open={jobModalOpen}
+        onClose={() => setJobModalOpen(false)}
+        onApply={() => {}}
+      />
     </div>
   );
 };

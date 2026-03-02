@@ -1,4 +1,4 @@
-import { Job, User, JobApplication, SavedJob } from '@/types';
+import { Job, User, JobApplication, SavedJob, Partner, Ad } from '@/types';
 
 export const mockJobs: Job[] = [
   {
@@ -191,12 +191,16 @@ export const mockRecruiter: User = {
   name: 'Healthcare Recruiting Solutions',
   email: 'hiring@hcrsolutions.com',
   role: 'recruiter',
+  employerStatus: 'approved',
   subscription: {
-    plan: 'enterprise',
-    billingCycle: 'yearly',
-    jobPostsRemaining: undefined, // unlimited
+    plan: 'professional',
+    billingCycle: 'monthly',
+    revealsTotal: 25,
+    revealsUsed: 8,
+    revealsRemaining: 17,
+    autoRenew: true,
     startDate: '2024-01-01',
-    endDate: '2025-01-01'
+    endDate: '2024-02-01'
   }
 };
 
@@ -267,47 +271,165 @@ export const subscriptionPlans = {
   ],
   recruiter: [
     {
-      id: 'rec_starter',
-      name: 'Starter',
-      price: 99,
+      id: 'emp_agency',
+      name: 'Agency',
+      price: 40,
       features: [
-        'Post up to 5 jobs',
+        '10 candidate reveals per month',
+        'View full applicant contact details',
         'Basic applicant tracking',
         'Email notifications',
         'Standard support'
       ],
-      jobPostsAllowed: 5,
+      revealsPerMonth: 10,
       recommended: false
     },
     {
-      id: 'rec_professional',
-      name: 'Professional',
-      price: 249,
+      id: 'emp_pro',
+      name: 'Pro',
+      price: 119,
       features: [
-        'Post up to 20 jobs',
+        '25 candidate reveals per month',
         'Advanced applicant tracking',
         'Featured job listings',
-        'Analytics dashboard',
+        'Match Alerts add-on eligible',
         'Priority support'
       ],
-      jobPostsAllowed: 20,
+      revealsPerMonth: 25,
       recommended: true
     },
     {
-      id: 'rec_enterprise',
+      id: 'emp_enterprise',
       name: 'Enterprise',
-      price: 499,
+      price: 249,
       features: [
-        'Unlimited job posts',
+        'Unlimited candidate reveals',
         'Premium applicant tracking',
         'Top placement for listings',
-        'Advanced analytics',
+        'Custom branding on job cards',
         'Dedicated account manager',
-        'API access',
-        'Custom branding'
+        'Assessment reports add-on eligible',
+        'Full analytics suite'
       ],
-      jobPostsAllowed: -1, // unlimited
+      revealsPerMonth: -1, // unlimited
       recommended: false
     }
+  ]
+};
+
+export const employerAddOns = [
+  {
+    id: 'addon_match_alerts',
+    name: 'Match Alerts',
+    description: 'Get instant notifications when a professional matching your job criteria signs up.',
+    price: 12,
+    icon: 'Bell'
+  },
+  {
+    id: 'addon_assessment',
+    name: 'Assessment Reports',
+    description: 'Receive AI-generated candidate assessment reports with skill scores and fit analysis.',
+    price: 10,
+    icon: 'ClipboardList'
+  },
+  {
+    id: 'addon_branding',
+    name: 'Employer Branding',
+    description: 'Display your logo, banner, and "Hiring Now" badge on all your job listings.',
+    price: 14,
+    icon: 'Megaphone'
+  }
+];
+
+export const mockPartners: Partner[] = [
+  {
+    id: 'p1',
+    name: 'LinguaPro',
+    logoUrl: '',
+    commissionPct: 15,
+    category: 'language',
+    description: 'English language preparation courses for healthcare professionals'
+  },
+  {
+    id: 'p2',
+    name: 'LicenseEase',
+    logoUrl: '',
+    commissionPct: 20,
+    category: 'licensing',
+    description: 'End-to-end nursing license transfer and verification services'
+  },
+  {
+    id: 'p3',
+    name: 'NursePortfolio',
+    logoUrl: '',
+    commissionPct: 12,
+    category: 'portfolio',
+    description: 'Build a professional digital portfolio to stand out to employers'
+  },
+  {
+    id: 'p4',
+    name: 'DepartureReady',
+    logoUrl: '',
+    commissionPct: 18,
+    category: 'training',
+    description: 'Pre-departure orientation and cultural adaptation training'
+  }
+];
+
+export const mockAds: Ad[] = [
+  {
+    id: 'ad1',
+    title: 'LinguaPro — IELTS Prep for Nurses',
+    imageUrl: '',
+    targetUrl: 'https://linguapro.example.com',
+    placement: 'job_feed_top',
+    active: true,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    impressionCount: 1240
+  },
+  {
+    id: 'ad2',
+    title: 'LicenseEase — Fast-Track Licensing',
+    imageUrl: '',
+    targetUrl: 'https://licenseease.example.com',
+    placement: 'dashboard_banner',
+    active: true,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    impressionCount: 870
+  }
+];
+
+export const mockRevenue = {
+  mrr: 18640,
+  arr: 223680,
+  monthlyHistory: [
+    { month: 'Sep', revenue: 12400, employers: 31, professionals: 88 },
+    { month: 'Oct', revenue: 13900, employers: 35, professionals: 102 },
+    { month: 'Nov', revenue: 15200, employers: 40, professionals: 115 },
+    { month: 'Dec', revenue: 16800, employers: 46, professionals: 128 },
+    { month: 'Jan', revenue: 17600, employers: 50, professionals: 140 },
+    { month: 'Feb', revenue: 18640, employers: 56, professionals: 158 }
+  ],
+  planBreakdown: [
+    { name: 'Agency ($40)', value: 1680, color: '#3b82f6' },
+    { name: 'Pro ($119)', value: 4760, color: '#8b5cf6' },
+    { name: 'Enterprise ($249)', value: 3486, color: '#06b6d4' },
+    { name: 'Professional (Seeker)', value: 5980, color: '#10b981' },
+    { name: 'Premium (Seeker)', value: 2734, color: '#f59e0b' }
+  ],
+  invoices: [
+    { id: 'INV-2026-001', client: 'Healthcare Recruiting Solutions', amount: 119, plan: 'Pro', date: '2026-02-01', status: 'paid' },
+    { id: 'INV-2026-002', client: 'TravelCare Staffing', amount: 249, plan: 'Enterprise', date: '2026-02-01', status: 'paid' },
+    { id: 'INV-2026-003', client: 'Valley General HR', amount: 40, plan: 'Agency', date: '2026-02-03', status: 'paid' },
+    { id: 'INV-2026-004', client: 'SunCare Medical', amount: 119, plan: 'Pro', date: '2026-02-10', status: 'pending' },
+    { id: 'INV-2026-005', client: 'Pacific Surgery Group', amount: 249, plan: 'Enterprise', date: '2026-01-01', status: 'overdue' }
+  ],
+  commissions: [
+    { partner: 'LinguaPro', sales: 12, revenue: 3600, commission: 540, pct: 15 },
+    { partner: 'LicenseEase', sales: 8, revenue: 4000, commission: 800, pct: 20 },
+    { partner: 'NursePortfolio', sales: 15, revenue: 2250, commission: 270, pct: 12 },
+    { partner: 'DepartureReady', sales: 6, revenue: 1800, commission: 324, pct: 18 }
   ]
 };

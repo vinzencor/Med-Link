@@ -94,10 +94,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     console.log('📦 Using cached role:', cachedRole);
                     setRole(cachedRole);
                 } else {
-                    // If no cached role, default to job_seeker to prevent infinite loading
-                    console.log('⚠️ No cached role, defaulting to job_seeker');
-                    setRole('job_seeker');
-                    localStorage.setItem('user_role', 'job_seeker');
+                    // If no cached role, set to null and let the app handle it
+                    console.log('⚠️ No cached role, setting to null');
+                    setRole(null);
                 }
             }
         };

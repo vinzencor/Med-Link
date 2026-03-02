@@ -19,17 +19,42 @@ const AdminLoginPage = () => {
         e.preventDefault();
         setLoading(true);
 
-        if (email !== 'rahulpradeepan55@gmail.com') {
-            toast({
-                title: "Access Denied",
-                description: "You are not authorized to access the admin panel.",
-                variant: "destructive",
-            });
-            setLoading(false);
-            return;
-        }
-
         try {
+            // First, check if user exists and their role BEFORE logging in
+            const { data: profiles, error: profileError } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('email', email)
+                .single();
+
+            if (profileError && profileError.code !== 'PGRST116') {
+                // PGRST116 is "not found" error
+                throw profileError;
+            }
+
+            // If user exists, check their role
+            if (profiles && profiles.role !== 'admin') {
+                toast({
+                    title: "Access Denied",
+                    description: "You are not authorized to access the admin panel.",
+                    variant: "destructive",
+                });
+                setLoading(false);
+                return;
+            }
+
+            // If user doesn't exist in profiles table
+            if (!profiles) {
+                toast({
+                    title: "Access Denied",
+                    description: "You are not authorized to access the admin panel.",
+                    variant: "destructive",
+                });
+                setLoading(false);
+                return;
+            }
+
+            // Now proceed with login
             const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password,

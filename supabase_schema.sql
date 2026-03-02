@@ -35,16 +35,33 @@ create table public.jobs (
   location text not null,
   company_name text not null,
   salary_range text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  job_type text,
+  category text,
+  requirements text[],
+  benefits text[],
+  status text default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  approved_by uuid references auth.users(id),
+  approved_at timestamp with time zone,
+  rejection_reason text
 );
 
 -- Enable RLS on jobs
 alter table public.jobs enable row level security;
 
 -- Jobs Policies
-create policy "Jobs are viewable by everyone"
+create policy "Jobs are viewable based on role"
   on public.jobs for select
-  using ( true );
+  using (
+    -- Admins can see all jobs
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+    or
+    -- Recruiters can see their own jobs regardless of status
+    (auth.uid() = recruiter_id)
+    or
+    -- Others can only see approved jobs
+    (status = 'approved')
+  );
 
 create policy "Recruiters can insert jobs"
   on public.jobs for insert
@@ -56,6 +73,15 @@ create policy "Recruiters can insert jobs"
 create policy "Recruiters can update own jobs"
   on public.jobs for update
   using ( auth.uid() = recruiter_id );
+
+create policy "Admins can update job status"
+  on public.jobs for update
+  using (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and role = 'admin'
+    )
+  );
 
 create policy "Recruiters can delete own jobs"
   on public.jobs for delete
