@@ -24,14 +24,23 @@ export function ConsentModal() {
     const [dataProcessingAccepted, setDataProcessingAccepted] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    // Only show when logged in and consent not yet given
-    const show = !!currentUser && !currentUser.consentGiven;
+    // Check localStorage so consent persists even if Supabase sync hasn't caught up
+    const localConsentKey = currentUser ? `consentGiven_${currentUser.id}` : null;
+    const localConsentGiven = localConsentKey ? localStorage.getItem(localConsentKey) === 'true' : false;
+
+    // Only show when logged in and consent not yet given (in DB or localStorage)
+    const show = !!currentUser && !currentUser.consentGiven && !localConsentGiven;
 
     const allAccepted = termsAccepted && privacyAccepted && dataProcessingAccepted;
 
     const handleAccept = async () => {
         if (!allAccepted) return;
         setLoading(true);
+        // Persist to localStorage immediately so the modal won't re-appear
+        // even if the Supabase write is slow or fails
+        if (localConsentKey) {
+            localStorage.setItem(localConsentKey, 'true');
+        }
         await updateUserProfile({
             consentGiven: true,
             consentDate: new Date().toISOString(),

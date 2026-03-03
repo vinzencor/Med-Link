@@ -60,8 +60,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           email: user.email || '',
           role: (role || profile?.role || 'job_seeker') as UserRole,
           avatar: profile?.avatar_url,
+          avatarUrl: profile?.avatar_url,
+          phone: profile?.phone,
+          bio: profile?.bio,
+          experience: profile?.experience,
+          cvUrl: profile?.cv_url,
+          videoUrl: profile?.video_url,
+          videoStatus: profile?.video_status,
+          consentGiven: profile?.consent_given,
+          consentDate: profile?.consent_date,
           // Add other fields as needed, potentially merging with mock data if needed for demo
-          ...profile
         };
 
         setCurrentUser(mappedUser);
@@ -279,6 +287,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (updates.videoUrl !== undefined) dbUpdates.video_url = updates.videoUrl;
     if (updates.videoStatus !== undefined) dbUpdates.video_status = updates.videoStatus;
     if (updates.cvUrl !== undefined) dbUpdates.cv_url = updates.cvUrl;
+    if (updates.consentGiven !== undefined) dbUpdates.consent_given = updates.consentGiven;
+    if (updates.consentDate !== undefined) dbUpdates.consent_date = updates.consentDate;
 
     const isRealUser = /^[0-9a-f]{8}-[0-9a-f]{4}/.test(currentUser.id);
     if (isRealUser && Object.keys(dbUpdates).length > 0) {
