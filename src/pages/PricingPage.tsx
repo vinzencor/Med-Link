@@ -6,15 +6,17 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Briefcase, Users, ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { subscriptionPlans } from '@/data/mockData';
+import { useApp } from '@/context/AppContext';
 import PricingCard from '@/components/subscription/PricingCard';
+import { Loader2 } from 'lucide-react';
 
 const PricingPage: React.FC = () => {
+  const { plans, plansLoading } = useApp();
   const [selectedRole, setSelectedRole] = useState<'job_seeker' | 'recruiter'>('job_seeker');
   const [isYearly, setIsYearly] = useState(false);
   const navigate = useNavigate();
 
-  const plans = selectedRole === 'recruiter' ? subscriptionPlans.recruiter : subscriptionPlans.jobSeeker;
+  const currentPlans = selectedRole === 'recruiter' ? plans.recruiter : plans.jobSeeker;
 
   const getDisplayPrice = (price: number) => {
     if (isYearly) return Math.round(price * 10);
@@ -24,6 +26,14 @@ const PricingPage: React.FC = () => {
   const handleSelectPlan = () => {
     navigate('/get-started');
   };
+
+  if (plansLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -93,7 +103,7 @@ const PricingPage: React.FC = () => {
 
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8 mb-16">
-          {plans.map((plan: any) => (
+          {currentPlans.map((plan: any) => (
             <PricingCard
               key={plan.id}
               name={plan.name}

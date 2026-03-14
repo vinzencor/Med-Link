@@ -30,7 +30,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, FileText, LogOut, CheckCircle, XCircle, Clock, Loader2, MapPin, Building2, DollarSign, Edit, Trash2, Key, TrendingUp, MessageSquare, Phone, Mail, Calendar, Briefcase, Video, Shield, ShieldCheck, ShieldOff, BarChart2, Megaphone, Eye, AlertTriangle, UserCheck, UserX, RefreshCw, Download, Plus, Image } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, LogOut, CheckCircle, XCircle, Clock, Loader2, MapPin, Building2, DollarSign, Edit, Trash2, Key, TrendingUp, MessageSquare, Phone, Mail, Calendar, Briefcase, Video, Shield, ShieldCheck, ShieldOff, BarChart2, Megaphone, Eye, AlertTriangle, UserCheck, UserX, RefreshCw, Download, Plus, Image, Settings, Filter, Search, ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -67,6 +67,136 @@ interface UserProfile {
     created_at: string;
     avatar_url: string | null;
     bio: string | null;
+    subscription?: any;
+    reveals_used?: number;
+    applications_used?: number;
+    video_url?: string;
+    video_status?: string;
+    video_rejection_reason?: string;
+}
+
+interface Plan {
+    id: string;
+    user_type: 'job_seeker' | 'recruiter';
+    name: string;
+    price: number;
+    billing_cycle: string;
+    features: string[];
+    applications_limit?: number;
+    reveals_limit?: number;
+    is_active: boolean;
+}
+
+const AdminPlanCard = ({ plan, onUpdate }: { plan: Plan; onUpdate: () => void }) => {
+    const { toast } = useToast();
+    const [isEditing, setIsEditing] = useState(false);
+    const [formData, setFormData] = useState({
+        price: plan.price,
+        applications_limit: plan.applications_limit || 0,
+        reveals_limit: plan.reveals_limit || 0,
+        is_active: plan.is_active
+    });
+
+    const handleSave = async () => {
+        try {
+            const { error } = await supabase
+                .from('subscription_plans')
+                .update({
+                    price: formData.price,
+                    applications_limit: formData.applications_limit === 0 && plan.user_type === 'job_seeker' ? null : formData.applications_limit,
+                    reveals_limit: formData.reveals_limit === 0 && plan.user_type === 'recruiter' ? null : formData.reveals_limit,
+                    is_active: formData.is_active
+                })
+                .eq('id', plan.id);
+
+            if (error) throw error;
+
+            toast({ title: 'Plan Updated', description: `${plan.name} configuration saved.` });
+            setIsEditing(false);
+            onUpdate();
+        } catch (error) {
+            console.error('Error updating plan:', error);
+            toast({ title: 'Update Failed', variant: 'destructive' });
+        }
+    };
+
+    return (
+        <div className="bg-white p-5 rounded-xl border shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <h4 className="font-bold text-gray-900">{plan.name}</h4>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">{plan.billing_cycle}</p>
+                </div>
+                <Badge className={plan.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}>
+                    {plan.is_active ? 'Active' : 'Disabled'}
+                </Badge>
+            </div>
+
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                        <Label className="text-xs">Price (Â£)</Label>
+                        <Input 
+                            type="number" 
+                            value={formData.price} 
+                            disabled={!isEditing}
+                            onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs">
+                            {plan.user_type === 'job_seeker' ? 'App Limit (0=âˆž)' : 'Reveal Limit (0=âˆž)'}
+                        </Label>
+                        <Input 
+                            type="number" 
+                            value={plan.user_type === 'job_seeker' ? formData.applications_limit : formData.reveals_limit} 
+                            disabled={!isEditing}
+                            onChange={(e) => plan.user_type === 'job_seeker' 
+                                ? setFormData({ ...formData, applications_limit: Number(e.target.value) })
+                                : setFormData({ ...formData, reveals_limit: Number(e.target.value) })
+                            }
+                        />
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <input 
+                        type="checkbox" 
+                        id={`active-${plan.id}`}
+                        checked={formData.is_active}
+                        disabled={!isEditing}
+                        onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    />
+                    <Label htmlFor={`active-${plan.id}`} className="text-sm">Available for purchase</Label>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                    {isEditing ? (
+                        <>
+                            <Button size="sm" className="flex-1" onClick={handleSave}>Save</Button>
+                            <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+                        </>
+                    ) : (
+                        <Button size="sm" variant="outline" className="w-full" onClick={() => setIsEditing(true)}>
+                            <Edit className="w-4 h-4 mr-2" /> Edit Plan
+                        </Button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+interface Plan {
+    id: string;
+    user_type: 'job_seeker' | 'recruiter';
+    name: string;
+    price: number;
+    billing_cycle: string;
+    features: string[];
+    applications_limit?: number;
+    reveals_limit?: number;
+    is_active: boolean;
 }
 
 const AdminDashboard = () => {
@@ -82,10 +212,12 @@ const AdminDashboard = () => {
     });
     const [jobs, setJobs] = useState<JobWithRecruiter[]>([]);
     const [users, setUsers] = useState<UserProfile[]>([]);
+    const [plans, setPlans] = useState<Plan[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'overview' | 'jobs' | 'users' | 'applicants' | 'employers' | 'revenue' | 'ads'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'jobs' | 'users' | 'applicants' | 'employers' | 'revenue' | 'ads' | 'plans'>('overview');
     const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
     const [userFilter, setUserFilter] = useState<'all' | 'student' | 'job_seeker' | 'recruiter' | 'admin'>('all');
+    const [planFilter, setPlanFilter] = useState<string>('all');
     const [monthlyIntakeLocked, setMonthlyIntakeLocked] = useState(false);
     const [monthlyIntakeCount] = useState(73); // mock count
 
@@ -256,14 +388,105 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleApproveVideo = async (userId: string, name: string) => {
+        try {
+            await supabase.from('profiles').update({ video_status: 'approved' }).eq('id', userId);
+            await supabase.from('notifications').insert({
+                user_id: userId,
+                type: 'video_approved',
+                title: 'Video Approved! 🎉',
+                message: 'Your introduction video has been approved. You can now apply for jobs.'
+            });
+            toast({ title: 'Video Approved', description: `${name}'s video has been approved and they've been notified.` });
+            fetchDashboardData();
+        } catch (error) {
+            console.error('Error approving video:', error);
+            toast({ title: 'Error', description: 'Failed to approve video', variant: 'destructive' });
+        }
+    };
+
+    const handleRejectVideo = async (userId: string, name: string, reason: string) => {
+        try {
+            await supabase.from('profiles').update({ 
+                video_status: 'rejected',
+                video_rejection_reason: reason 
+            }).eq('id', userId);
+            await supabase.from('notifications').insert({
+                user_id: userId,
+                type: 'video_rejected',
+                title: 'Video Rejected',
+                message: `Your video was not approved. Reason: ${reason}. Please re-upload a new video.`
+            });
+            toast({ title: 'Video Rejected', description: `${name}'s video has been rejected.` });
+            fetchDashboardData();
+        } catch (error) {
+            console.error('Error rejecting video:', error);
+            toast({ title: 'Error', description: 'Failed to reject video', variant: 'destructive' });
+        }
+    };
+
+    const handleApproveDocs = async (userId: string, name: string) => {
+        try {
+            await supabase.from('user_documents').update({ status: 'verified' }).eq('user_id', userId);
+            await supabase.from('notifications').insert({
+                user_id: userId,
+                type: 'docs_verified',
+                title: 'Documents Verified ✓',
+                message: 'Your documents have been verified. Your profile is now more credible to employers.'
+            });
+            toast({ title: 'Documents verified', description: `${name}'s documents approved.` });
+            fetchDashboardData();
+        } catch (error) {
+            console.error('Error approving docs:', error);
+            toast({ title: 'Error', description: 'Failed to approve documents', variant: 'destructive' });
+        }
+    };
+
+    const handleRejectDocs = async (userId: string, name: string, reason: string) => {
+        try {
+            await supabase.from('user_documents').update({ 
+                status: 'rejected',
+                rejection_reason: reason 
+            }).eq('user_id', userId);
+            await supabase.from('notifications').insert({
+                user_id: userId,
+                type: 'docs_rejected',
+                title: 'Documents Rejected',
+                message: `Your documents were rejected. Reason: ${reason}`
+            });
+            toast({ title: 'Documents rejected', description: `${name}'s documents rejected.`, variant: 'destructive' });
+            fetchDashboardData();
+        } catch (error) {
+            console.error('Error rejecting docs:', error);
+            toast({ title: 'Error', description: 'Failed to reject documents', variant: 'destructive' });
+        }
+    };
+
+    const handleResetReveals = async (userId: string) => {
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ reveals_used: 0 })
+                .eq('id', userId);
+
+            if (error) throw error;
+
+            toast({ title: 'Success', description: 'Reveal counter reset successfully' });
+            fetchDashboardData();
+        } catch (error) {
+            console.error('Error resetting reveals:', error);
+            toast({ title: 'Error', description: 'Failed to reset reveal counter', variant: 'destructive' });
+        }
+    };
+
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
 
-            // Fetch all users
+            // Fetch all users with subscription info
             const { data: usersData, error: usersError } = await supabase
                 .from('profiles')
-                .select('*')
+                .select('*, subscription:subscriptions(plan_id, plan:subscription_plans(*))')
                 .order('created_at', { ascending: false });
 
             if (usersError) throw usersError;
@@ -286,6 +509,14 @@ const AdminDashboard = () => {
                 .from('applications')
                 .select('created_at, status')
                 .order('created_at', { ascending: true });
+
+            // Fetch plans
+            const { data: plansData } = await supabase
+                .from('subscription_plans')
+                .select('*')
+                .order('price', { ascending: true });
+
+            setPlans(plansData || []);
 
             const jobsWithRecruiter = (jobsData || []).map(job => ({
                 ...job,
@@ -476,6 +707,13 @@ const AdminDashboard = () => {
                         onClick={() => setActiveTab('revenue')}
                     >
                         <BarChart2 className="mr-2 h-4 w-4" /> Revenue
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        className={`w-full justify-start ${activeTab === 'plans' ? 'bg-gray-800 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+                        onClick={() => setActiveTab('plans')}
+                    >
+                        <Settings className="mr-2 h-4 w-4" /> Plan Management
                     </Button>
                     <Button
                         variant="ghost"
@@ -798,6 +1036,17 @@ const AdminDashboard = () => {
                                         <p className="text-gray-600 mt-1">Manage all platform users</p>
                                     </div>
                                     <div className="flex gap-2">
+                                        <Select value={planFilter} onValueChange={setPlanFilter}>
+                                            <SelectTrigger className="w-[150px]">
+                                                <SelectValue placeholder="Filter by Plan" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Plans</SelectItem>
+                                                <SelectItem value="free">Free</SelectItem>
+                                                <SelectItem value="pro">Pro</SelectItem>
+                                                <SelectItem value="elite">Elite</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         <Button
                                             variant={userFilter === 'all' ? 'default' : 'outline'}
                                             onClick={() => setUserFilter('all')}
@@ -847,6 +1096,7 @@ const AdminDashboard = () => {
                                             <tbody className="bg-white divide-y divide-gray-200">
                                                 {users
                                                     .filter(u => userFilter === 'all' || u.role === userFilter)
+                                                    .filter(u => planFilter === 'all' || u.subscription?.plan === planFilter)
                                                     .map(user => (
                                                         <tr key={user.id} className="hover:bg-gray-50">
                                                             <td className="px-6 py-4 whitespace-nowrap">
@@ -980,37 +1230,48 @@ const AdminDashboard = () => {
                                                         <td className="px-6 py-4">
                                                             <div className="flex gap-1">
                                                                 <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-green-600 border-green-200 hover:bg-green-50"
-                                                                    onClick={async () => {
-                                                                        await supabase.from('user_documents').update({ status: 'verified' }).eq('user_id', applicant.id);
-                                                                        toast({ title: 'Documents verified', description: `${applicant.full_name}'s documents approved.` });
-                                                                    }}>
+                                                                    onClick={() => handleApproveDocs(applicant.id, applicant.full_name || 'User')}>
                                                                     <ShieldCheck className="w-3 h-3 mr-1" /> Verify
                                                                 </Button>
                                                                 <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-red-600 border-red-200 hover:bg-red-50"
-                                                                    onClick={async () => {
-                                                                        await supabase.from('user_documents').update({ status: 'rejected' }).eq('user_id', applicant.id);
-                                                                        toast({ title: 'Documents rejected', description: `${applicant.full_name}'s documents rejected.`, variant: 'destructive' });
+                                                                    onClick={() => {
+                                                                        const reason = prompt('Reason for rejection:');
+                                                                        if (reason) handleRejectDocs(applicant.id, applicant.full_name || 'User', reason);
                                                                     }}>
                                                                     <ShieldOff className="w-3 h-3 mr-1" /> Reject
                                                                 </Button>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <div className="flex gap-1">
-                                                                <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-green-600 border-green-200 hover:bg-green-50"
-                                                                    onClick={async () => {
-                                                                        await supabase.from('profiles').update({ video_status: 'approved' }).eq('id', applicant.id);
-                                                                        toast({ title: 'Video approved', description: `${applicant.full_name}'s video is approved.` });
-                                                                    }}>
-                                                                    <Video className="w-3 h-3 mr-1" /> Approve
-                                                                </Button>
-                                                                <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-red-600 border-red-200 hover:bg-red-50"
-                                                                    onClick={async () => {
-                                                                        await supabase.from('profiles').update({ video_status: 'rejected' }).eq('id', applicant.id);
-                                                                        toast({ title: 'Video rejected', description: `${applicant.full_name}'s video rejected.`, variant: 'destructive' });
-                                                                    }}>
-                                                                    <XCircle className="w-3 h-3 mr-1" /> Reject
-                                                                </Button>
+                                                            <div className="flex flex-col gap-2">
+                                                                <div className="flex gap-1">
+                                                                    {applicant.video_url ? (
+                                                                        <Button size="sm" variant="ghost" className="h-7 text-xs px-2 text-blue-600" 
+                                                                            onClick={() => window.open(applicant.video_url, '_blank')}>
+                                                                            <ExternalLink className="w-3 h-3 mr-1" /> View Video
+                                                                        </Button>
+                                                                    ) : (
+                                                                        <span className="text-xs text-gray-400">No Video</span>
+                                                                    )}
+                                                                </div>
+                                                                {applicant.video_url && applicant.video_status !== 'approved' && (
+                                                                    <div className="flex gap-1">
+                                                                        <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-green-600 border-green-200 hover:bg-green-50"
+                                                                            onClick={() => handleApproveVideo(applicant.id, applicant.full_name || 'User')}>
+                                                                            <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                                                                        </Button>
+                                                                        <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-red-600 border-red-200 hover:bg-red-50"
+                                                                            onClick={() => {
+                                                                                const reason = prompt('Reason for rejection:');
+                                                                                if (reason) handleRejectVideo(applicant.id, applicant.full_name || 'User', reason);
+                                                                            }}>
+                                                                            <XCircle className="w-3 h-3 mr-1" /> Reject
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
+                                                                {applicant.video_status === 'approved' && (
+                                                                    <Badge className="bg-green-100 text-green-700 w-fit">Approved</Badge>
+                                                                )}
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4 text-sm text-gray-500">
@@ -1065,15 +1326,19 @@ const AdminDashboard = () => {
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-sm font-medium">— / —</span>
+                                                                <span className="text-sm font-medium">
+                                                                    {employer.reveals_used || 0} / {employer.subscription?.plan?.reveals_limit === -1 ? '∞' : (employer.subscription?.plan?.reveals_limit || '—')}
+                                                                </span>
                                                                 <Button size="sm" variant="ghost" className="h-6 text-xs text-blue-600"
-                                                                    onClick={() => toast({ title: 'Reveals Reset', description: `Reveal counter for ${employer.full_name} has been reset.` })}>
+                                                                    onClick={() => handleResetReveals(employer.id)}>
                                                                     <RefreshCw className="w-3 h-3 mr-1" /> Reset
                                                                 </Button>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <Badge className="bg-primary/10 text-primary text-xs">Active</Badge>
+                                                            <Badge className="bg-primary/10 text-primary text-xs">
+                                                                {employer.subscription?.plan?.name || 'No Plan'}
+                                                            </Badge>
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex gap-1">
@@ -1104,6 +1369,48 @@ const AdminDashboard = () => {
                             </>
                         )}
 
+                        {/* ── PLAN MANAGEMENT TAB ── */}
+                        {activeTab === 'plans' && (
+                            <>
+                                <div className="mb-8 flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-3xl font-bold text-gray-800">Plan Management</h2>
+                                        <p className="text-gray-600 mt-1">Configure pricing, limits, and features for subscription tiers</p>
+                                    </div>
+                                    <Button className="bg-primary text-white" onClick={() => toast({ title: 'Coming Soon', description: 'Adding new plans from the UI will be available in the next update.' })}>
+                                        <Plus className="w-4 h-4 mr-2" /> New Plan
+                                    </Button>
+                                </div>
+
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                                    {/* Job Seeker Plans */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                                            <UserCheck className="w-5 h-5 text-blue-500" />
+                                            Job Seeker Plans
+                                        </h3>
+                                        <div className="grid gap-4">
+                                            {plans.filter(p => p.user_type === 'job_seeker').map(plan => (
+                                                <AdminPlanCard key={plan.id} plan={plan} onUpdate={fetchDashboardData} />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Recruiter Plans */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                                            <Building2 className="w-5 h-5 text-indigo-500" />
+                                            Recruiter Plans
+                                        </h3>
+                                        <div className="grid gap-4">
+                                            {plans.filter(p => p.user_type === 'recruiter').map(plan => (
+                                                <AdminPlanCard key={plan.id} plan={plan} onUpdate={fetchDashboardData} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                         {/* ── REVENUE TAB ── */}
                         {activeTab === 'revenue' && (
                             <>

@@ -29,7 +29,8 @@ import {
   XCircle,
   Eye,
   Download,
-  User
+  User,
+  Loader2
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -207,121 +208,179 @@ const ApplicantsPage: React.FC = () => {
             {filteredApplications.map(application => {
               const job = application.job;
               const cvUrl = application.cv_url || application.resume_url;
-
-              return (
-                <div key={application.id} className="card-elevated p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                    {/* Avatar */}
-                    <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                      {application.applicant?.avatar_url ? (
-                        <img src={application.applicant.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-lg font-semibold text-primary">
-                          {application.applicant?.full_name?.split(' ').map((n: string) => n[0]).join('') || '?'}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                        <div>
-                          <h3 className="text-lg font-semibold">{application.applicant?.full_name || 'Unknown Candidate'}</h3>
-                          <p className="text-muted-foreground">Applied for: {job?.title}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={getStatusColor(application.status)}>
-                            {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
-                          </Badge>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleViewCV(cvUrl)}>
-                                <Eye className="w-4 h-4 mr-2" />
-                                View CV
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleViewCV(cvUrl)}>
-                                <Download className="w-4 h-4 mr-2" />
-                                Download CV
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-success" onClick={() => updateStatus(application.id, 'shortlisted')}>
-                                <CheckCircle2 className="w-4 h-4 mr-2" />
-                                Shortlist
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive" onClick={() => updateStatus(application.id, 'rejected')}>
-                                <XCircle className="w-4 h-4 mr-2" />
-                                Reject
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-
-                      {/* Contact & Details */}
-                      <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Mail className="w-4 h-4" />
-                          {application.applicant?.email}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-4 h-4" />
-                          {application.applicant?.phone || application.phone || '--'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {formatDistanceToNow(new Date(application.created_at), { addSuffix: true })}
-                        </span>
-                      </div>
-
-                      {/* Experience */}
-                      <div className="mt-3 p-3 bg-secondary rounded-lg">
-                        <p className="text-sm">
-                          <span className="font-medium">Experience:</span> {application.experience || 'Not specified'}
-                        </p>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 mt-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewCV(cvUrl)}
-                        >
-                          <FileText className="w-4 h-4 mr-1" />
-                          View CV
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.location.href = `mailto:${application.applicant?.email}`}
-                        >
-                          <Mail className="w-4 h-4 mr-1" />
-                          Contact
-                        </Button>
-                        {application.status === 'pending' && (
-                          <Button
-                            size="sm"
-                            variant="default"
-                            className="bg-green-600 hover:bg-green-700"
-                            onClick={() => updateStatus(application.id, 'shortlisted')}
-                          >
-                            <CheckCircle2 className="w-4 h-4 mr-1" />
-                            Shortlist
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
+              const seekerId = application.seeker_id;
+              
+              // Local state for reveal status of this specific application
+              return <ApplicantRow 
+                key={application.id} 
+                application={application} 
+                job={job}
+                cvUrl={cvUrl}
+                seekerId={seekerId}
+                updateStatus={updateStatus}
+                handleViewCV={handleViewCV}
+              />;
             })}
           </div>
         )}
       </main>
+    </div>
+  );
+};
+
+// Extracted Row component to manage local reveal state
+const ApplicantRow = ({ application, job, cvUrl, seekerId, updateStatus, handleViewCV }: any) => {
+  const { checkRevealed, revealCandidate } = useApp();
+  const [isRevealed, setIsRevealed] = useState(false);
+  const [revealLoading, setRevealLoading] = useState(true);
+
+  React.useEffect(() => {
+    const init = async () => {
+      const revealed = await checkRevealed(seekerId);
+      setIsRevealed(revealed);
+      setRevealLoading(false);
+    };
+    init();
+  }, [seekerId]);
+
+  const handleReveal = async () => {
+    const success = await revealCandidate(seekerId);
+    if (success) {
+      setIsRevealed(true);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-warning/10 text-warning border-warning/20';
+      case 'reviewed': return 'bg-primary/10 text-primary border-primary/20';
+      case 'shortlisted': return 'bg-success/10 text-success border-success/20';
+      case 'rejected': return 'bg-destructive/10 text-destructive border-destructive/20';
+      case 'hired': return 'bg-success text-success-foreground';
+      default: return '';
+    }
+  };
+
+  return (
+    <div className="card-elevated p-5">
+      <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+        {/* Avatar */}
+        <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+          {application.applicant?.avatar_url ? (
+            <img src={application.applicant.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-lg font-semibold text-primary">
+              {application.applicant?.full_name?.split(' ').map((n: string) => n[0]).join('') || '?'}
+            </span>
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+            <div>
+              <h3 className="text-lg font-semibold">{application.applicant?.full_name || 'Unknown Candidate'}</h3>
+              <p className="text-muted-foreground">Applied for: {job?.title}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={getStatusColor(application.status)}>
+                {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+              </Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => isRevealed ? handleViewCV(cvUrl) : handleReveal()}>
+                    <Eye className="w-4 h-4 mr-2" />
+                    {isRevealed ? 'View CV' : 'Reveal & View CV'}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="text-success" onClick={() => updateStatus(application.id, 'shortlisted')}>
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    Shortlist
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive" onClick={() => updateStatus(application.id, 'rejected')}>
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Reject
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* Contact & Details */}
+          <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Mail className="w-4 h-4" />
+              {isRevealed ? application.applicant?.email : '••••••••@••••.•••'}
+            </span>
+            <span className="flex items-center gap-1">
+              <Phone className="w-4 h-4" />
+              {isRevealed ? (application.applicant?.phone || application.phone || '--') : '•••••• ••••'}
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-4 h-4" />
+              {formatDistanceToNow(new Date(application.created_at), { addSuffix: true })}
+            </span>
+          </div>
+
+          {/* Experience */}
+          <div className="mt-3 p-3 bg-secondary rounded-lg">
+            <p className="text-sm">
+              <span className="font-medium">Experience:</span> {application.experience || 'Not specified'}
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 mt-4">
+            {isRevealed ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleViewCV(cvUrl)}
+                >
+                  <FileText className="w-4 h-4 mr-1" />
+                  View CV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.href = `mailto:${application.applicant?.email}`}
+                >
+                  <Mail className="w-4 h-4 mr-1" />
+                  Contact
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="default"
+                size="sm"
+                className="bg-indigo-600 hover:bg-indigo-700"
+                onClick={handleReveal}
+                disabled={revealLoading}
+              >
+                {revealLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
+                Reveal Contact Details
+              </Button>
+            )}
+            
+            {(application.status === 'pending' || application.status === 'reviewed') && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-success border-success/20 hover:bg-success/5"
+                onClick={() => updateStatus(application.id, 'shortlisted')}
+              >
+                <CheckCircle2 className="w-4 h-4 mr-1" />
+                Shortlist
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

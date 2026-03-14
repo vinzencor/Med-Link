@@ -21,6 +21,30 @@ export interface AddOn {
   purchasedAt?: string;
 }
 
+export interface Education {
+  id: string;
+  school: string;
+  degree: string;
+  field: string;
+  startDate: string;
+  endDate?: string;
+}
+
+export interface Certification {
+  id: string;
+  name: string;
+  issuer: string;
+  date: string;
+  expiry?: string;
+}
+
+export interface JobPreferences {
+  desiredRole?: string;
+  locations?: string[];
+  salaryExpectation?: string;
+  jobType?: string[];
+}
+
 export interface User {
   id: string;
   name: string;
@@ -32,6 +56,7 @@ export interface User {
   cvUrl?: string;
   videoUrl?: string;
   videoStatus?: VideoStatus;
+  videoRejectionReason?: string;
   phone?: string;
   experience?: string;
   bio?: string;
@@ -43,6 +68,9 @@ export interface User {
   employerStatus?: EmployerStatus;
   consentGiven?: boolean;
   consentDate?: string;
+  education?: Education[];
+  certifications?: Certification[];
+  preferences?: JobPreferences;
 }
 
 export interface UserDocument {

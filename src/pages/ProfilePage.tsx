@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import Header from '@/components/layout/Header';
 import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
@@ -21,7 +21,8 @@ import {
   Star,
   Shield,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  XCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -40,6 +41,7 @@ const ProfilePage: React.FC = () => {
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [isUploadingCV, setIsUploadingCV] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [currentStep, setCurrentStep] = useState(1);
 
   const displayUser = currentUser || {
     name: user?.email?.split('@')[0] || 'User',
@@ -54,8 +56,14 @@ const ProfilePage: React.FC = () => {
     email: displayUser?.email || '',
     phone: currentUser?.phone || '',
     bio: currentUser?.bio || '',
-    experience: currentUser?.experience || ''
+    experience: currentUser?.experience || '',
+    education: currentUser?.education || [],
+    certifications: currentUser?.certifications || [],
+    preferences: currentUser?.preferences || {}
   });
+
+  const nextStep = () => setCurrentStep(prev => Math.min(4, prev + 1));
+  const prevStep = () => setCurrentStep(prev => Math.max(1, prev - 1));
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -64,7 +72,10 @@ const ProfilePage: React.FC = () => {
         name: formData.name,
         phone: formData.phone,
         bio: formData.bio,
-        experience: formData.experience
+        experience: formData.experience,
+        education: formData.education,
+        certifications: formData.certifications,
+        preferences: formData.preferences
       });
       toast({ title: 'Profile Updated', description: 'Your profile has been saved successfully.' });
       setIsEditing(false);
@@ -94,6 +105,16 @@ const ProfilePage: React.FC = () => {
         const { data, error } = await supabase.storage.from('user-documents').upload(path, file, { upsert: true });
         if (error) throw error;
         const { data: { publicUrl } } = supabase.storage.from('user-documents').getPublicUrl(data.path);
+        
+        // Track in user_documents table
+        await supabase.from('user_documents').upsert({
+          user_id: userId,
+          name: 'Resume / CV',
+          type: 'cv',
+          url: publicUrl,
+          status: 'pending'
+        }, { onConflict: 'user_id, type' });
+
         await updateUserProfile({ cvUrl: publicUrl });
         updateUserCV(publicUrl);
       } else {
@@ -186,9 +207,10 @@ const ProfilePage: React.FC = () => {
   };
 
   const videoStatusLabel = (status?: string) => {
-    if (status === 'approved') return 'Approved â€” You can now apply to jobs';
-    if (status === 'rejected') return 'Rejected â€” Please re-upload a new video';
-    return 'Pending Admin Review';
+    if (status === 'approved') return 'Approved — You can now apply to jobs';
+    if (status === 'rejected') return 'Rejected — Please review feedback and re-upload';
+    if (status === 'pending') return 'Pending Approval — Admin is reviewing your video';
+    return 'Not Uploaded';
   };
 
   return (
@@ -281,62 +303,172 @@ const ProfilePage: React.FC = () => {
           <VerificationStatus user={currentUser} />
         )}
 
-        {/* Personal Information */}
+        {/* Profile Wizard */}
         <div className="card-elevated p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <User className="w-5 h-5 text-primary" />
-            Personal Information
-          </h3>
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  disabled={!isEditing}
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Shield className="w-5 h-5 text-primary" />
+              Profile Wizard
+            </h3>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4].map((step) => (
+                <div
+                  key={step}
+                  className={`w-8 h-2 rounded-full transition-all ${
+                    step === currentStep ? 'bg-primary w-12' : step < currentStep ? 'bg-primary/40' : 'bg-secondary'
+                  }`}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input id="email" type="email" value={formData.email} disabled className="opacity-60" />
-              </div>
+              ))}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  disabled={!isEditing}
-                />
-              </div>
-              {displayRole === 'job_seeker' && (
+          </div>
+
+          <div className="min-h-[300px]">
+            {currentStep === 1 && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                <h4 className="font-medium text-sm text-primary uppercase tracking-wider">Step 1: Basics</h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    />
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <Label htmlFor="experience">Experience</Label>
-                  <Input
-                    id="experience"
-                    value={formData.experience}
-                    onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-                    placeholder="e.g., 5 years in ER nursing"
-                    disabled={!isEditing}
+                  <Label htmlFor="bio">Professional Bio</Label>
+                  <Textarea
+                    id="bio"
+                    value={formData.bio}
+                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                    placeholder="Briefly describe your healthcare background..."
+                    rows={4}
                   />
                 </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bio">Bio</Label>
-              <Textarea
-                id="bio"
-                value={formData.bio}
-                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                placeholder="Tell us about yourself..."
-                rows={3}
-                disabled={!isEditing}
-              />
-            </div>
+              </div>
+            )}
+
+            {currentStep === 2 && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                <h4 className="font-medium text-sm text-primary uppercase tracking-wider">Step 2: Education</h4>
+                {formData.education.map((edu: any, index: number) => (
+                  <div key={index} className="p-4 border rounded-lg bg-secondary/50 relative group">
+                    <Button 
+                      variant="ghost" size="icon" 
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => setFormData({
+                        ...formData,
+                        education: formData.education.filter((_: any, i: number) => i !== index)
+                      })}
+                    >
+                      <XCircle className="w-4 h-4 text-destructive" />
+                    </Button>
+                    <p className="font-semibold">{edu.degree} in {edu.field}</p>
+                    <p className="text-sm text-muted-foreground">{edu.school}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{edu.startDate} - {edu.endDate || 'Present'}</p>
+                  </div>
+                ))}
+                <Button 
+                  variant="outline" className="w-full border-dashed"
+                  onClick={() => setFormData({
+                    ...formData,
+                    education: [...formData.education, { id: crypto.randomUUID(), school: 'New University', degree: 'Bachelor', field: 'Nursing', startDate: '2020' }]
+                  })}
+                >
+                  + Add Education
+                </Button>
+              </div>
+            )}
+
+            {currentStep === 3 && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                <h4 className="font-medium text-sm text-primary uppercase tracking-wider">Step 3: Certifications</h4>
+                {formData.certifications.map((cert: any, index: number) => (
+                  <div key={index} className="p-4 border rounded-lg bg-secondary/50 flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold">{cert.name}</p>
+                      <p className="text-xs text-muted-foreground">Issued by {cert.issuer} ({cert.date})</p>
+                    </div>
+                    <Button 
+                      variant="ghost" size="icon" 
+                      onClick={() => setFormData({
+                        ...formData,
+                        certifications: formData.certifications.filter((_: any, i: number) => i !== index)
+                      })}
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button 
+                  variant="outline" className="w-full border-dashed"
+                  onClick={() => setFormData({
+                    ...formData,
+                    certifications: [...formData.certifications, { id: crypto.randomUUID(), name: 'ACLS Certification', issuer: 'AHA', date: '2023' }]
+                  })}
+                >
+                  + Add Certification
+                </Button>
+              </div>
+            )}
+
+            {currentStep === 4 && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                <h4 className="font-medium text-sm text-primary uppercase tracking-wider">Step 4: Job Preferences</h4>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Desired Role</Label>
+                    <Input 
+                      placeholder="e.g. ICU Nurse, Nurse Practitioner"
+                      value={formData.preferences.desiredRole}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        preferences: { ...formData.preferences, desiredRole: e.target.value }
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Preferred Locations</Label>
+                    <Input 
+                      placeholder="e.g. London, Manchester (comma separated)"
+                      value={formData.preferences.locations?.join(', ')}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        preferences: { ...formData.preferences, locations: e.target.value.split(',').map(s => s.trim()) }
+                      })}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between mt-8 pt-6 border-t">
+            <Button
+              variant="ghost"
+              onClick={prevStep}
+              disabled={currentStep === 1}
+            >
+              Back
+            </Button>
+            {currentStep < 4 ? (
+              <Button onClick={nextStep}>
+                Next Step
+              </Button>
+            ) : (
+              <Button onClick={handleSave} disabled={isSaving} className="bg-success hover:bg-success/90">
+                {isSaving ? 'Saving...' : 'Finish & Save'}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -359,17 +491,28 @@ const ProfilePage: React.FC = () => {
                     {currentUser.videoStatus === 'approved'
                       ? <CheckCircle2 className="w-4 h-4" />
                       : currentUser.videoStatus === 'rejected'
-                      ? <AlertCircle className="w-4 h-4" />
+                      ? <XCircle className="w-4 h-4" />
                       : <RefreshCw className="w-4 h-4 animate-spin" />}
                     <span className="text-sm font-medium">{videoStatusLabel(currentUser.videoStatus)}</span>
                   </div>
-                  <label className="cursor-pointer">
-                    <input type="file" accept="video/mp4,video/quicktime,video/webm" onChange={handleVideoUpload} className="hidden" />
-                    <Button variant="outline" size="sm" asChild disabled={isUploadingVideo}>
-                      <span>Replace Video</span>
-                    </Button>
-                  </label>
+                  {currentUser.videoStatus !== 'approved' && (
+                    <label className="cursor-pointer">
+                      <input type="file" accept="video/mp4,video/quicktime,video/webm" onChange={handleVideoUpload} className="hidden" />
+                      <Button variant="outline" size="sm" asChild disabled={isUploadingVideo}>
+                        <span>Replace Video</span>
+                      </Button>
+                    </label>
+                  )}
                 </div>
+                {currentUser.videoStatus === 'rejected' && currentUser.videoRejectionReason && (
+                  <div className="p-3 bg-destructive/5 border border-destructive/20 rounded-lg flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-destructive">Rejection Feedback:</p>
+                      <p className="text-sm text-muted-foreground">{currentUser.videoRejectionReason}</p>
+                    </div>
+                  </div>
+                )}
                 <video src={currentUser.videoUrl} controls className="w-full rounded-lg max-h-60 bg-black" />
               </div>
             ) : (

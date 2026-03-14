@@ -29,6 +29,10 @@ interface AppContextType {
   addNotification: (n: Omit<Notification, 'id' | 'createdAt' | 'userId'>) => void;
   purchaseAddOn: (addOn: Pick<AddOn, 'id' | 'name' | 'price'>) => void;
   toggleAutoRenew: () => void;
+  plans: { jobSeeker: any[], recruiter: any[] };
+  plansLoading: boolean;
+  revealCandidate: (seekerId: string) => Promise<boolean>;
+  checkRevealed: (seekerId: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -42,6 +46,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [savedJobs, setSavedJobs] = useState<SavedJob[]>(mockSavedJobs);
   const [applications, setApplications] = useState<JobApplication[]>(mockApplications);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [plans, setPlans] = useState<{ jobSeeker: any[], recruiter: any[] }>({ jobSeeker: [], recruiter: [] });
+  const [plansLoading, setPlansLoading] = useState(true);
 
   // Sync AuthContext user to AppContext currentUser
   useEffect(() => {
@@ -67,6 +73,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           cvUrl: profile?.cv_url,
           videoUrl: profile?.video_url,
           videoStatus: profile?.video_status,
+          videoRejectionReason: profile?.video_rejection_reason,
           consentGiven: profile?.consent_given,
           consentDate: profile?.consent_date,
           // Add other fields as needed, potentially merging with mock data if needed for demo
@@ -132,6 +139,74 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     fetchSavedJobs();
+  }, [currentUser?.id]);
+
+  // Fetch notifications from Supabase
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!currentUser?.id || !isUUID(currentUser.id)) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching notifications:', error);
+          return;
+        }
+
+        if (data) {
+          const mappedNotifications: Notification[] = data.map(n => ({
+            id: n.id,
+            userId: n.user_id,
+            type: n.type,
+            title: n.title,
+            message: n.message,
+            read: n.read,
+            createdAt: n.created_at,
+            metadata: n.metadata
+          }));
+          setNotifications(mappedNotifications);
+        }
+      } catch (error) {
+        console.error('Unexpected error fetching notifications:', error);
+      }
+    };
+
+    fetchNotifications();
+
+    // Set up real-time subscription for notifications
+    const channel = supabase
+      .channel('public:notifications')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'notifications',
+        filter: `user_id=eq.${currentUser?.id}` 
+      }, (payload) => {
+        const newN = payload.new as any;
+        setNotifications(prev => [{
+          id: newN.id,
+          userId: newN.user_id,
+          type: newN.type,
+          title: newN.title,
+          message: newN.message,
+          read: newN.read,
+          createdAt: newN.created_at,
+          metadata: newN.metadata
+        }, ...prev]);
+        
+        // Push notification via browser if possible or just toast
+        // We'll let the Header component handle the unread count
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [currentUser?.id]);
 
   useEffect(() => {
@@ -200,6 +275,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     fetchJobs();
   }, [currentUser]);
+
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        setPlansLoading(true);
+        const { data, error } = await supabase
+          .from('subscription_plans')
+          .select('*');
+
+        if (error) throw error;
+
+        if (data) {
+          const transformed = {
+            jobSeeker: data.filter(p => p.user_type === 'job_seeker').map(p => ({
+              ...p,
+              applicationsPerMonth: p.applications_limit,
+              revealsPerMonth: p.reveals_limit
+            })),
+            recruiter: data.filter(p => p.user_type === 'recruiter').map(p => ({
+              ...p,
+              applicationsPerMonth: p.applications_limit,
+              revealsPerMonth: p.reveals_limit
+            }))
+          };
+          setPlans(transformed);
+        }
+      } catch (error) {
+        console.error('Error fetching plans:', error);
+        // Fallback to mock data if DB fails
+      } finally {
+        setPlansLoading(false);
+      }
+    };
+
+    fetchPlans();
+  }, []);
 
   const handleSetUserRole = (role: UserRole) => {
     setUserRole(role);
@@ -315,15 +426,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
 
-  const markNotificationRead = (id: string) => {
+  const markNotificationRead = async (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    if (currentUser?.id && isUUID(currentUser.id)) {
+      try {
+        await supabase.from('notifications').update({ read: true }).eq('id', id);
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
+    }
   };
 
-  const markAllNotificationsRead = () => {
+  const markAllNotificationsRead = async () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    if (currentUser?.id && isUUID(currentUser.id)) {
+      try {
+        await supabase.from('notifications').update({ read: true }).eq('user_id', currentUser.id);
+      } catch (error) {
+        console.error('Error marking all notifications as read:', error);
+      }
+    }
   };
 
-  const addNotification = (n: Omit<Notification, 'id' | 'createdAt' | 'userId'>) => {
+  const addNotification = async (n: Omit<Notification, 'id' | 'createdAt' | 'userId'>) => {
     const newN: Notification = {
       ...n,
       userId: currentUser?.id ?? 'anon',
@@ -331,6 +456,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       createdAt: new Date().toISOString(),
     };
     setNotifications(prev => [newN, ...prev]);
+
+    if (currentUser?.id && isUUID(currentUser.id)) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: currentUser.id,
+          type: n.type,
+          title: n.title,
+          message: n.message,
+          metadata: n.metadata
+        });
+      } catch (error) {
+        console.error('Error adding notification to database:', error);
+      }
+    }
   };
 
   const purchaseAddOn = (addOn: Pick<AddOn, 'id' | 'name' | 'price'>) => {
@@ -349,6 +488,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...currentUser,
       subscription: { ...currentUser.subscription, autoRenew: !currentUser.subscription.autoRenew }
     });
+  };
+
+  const checkRevealed = async (seekerId: string) => {
+    if (!currentUser?.id || currentUser.role !== 'recruiter') return false;
+    try {
+      const { data, error } = await supabase
+        .from('profile_reveals')
+        .select('*')
+        .eq('recruiter_id', currentUser.id)
+        .eq('seeker_id', seekerId)
+        .single();
+      
+      return !!data;
+    } catch {
+      return false;
+    }
+  };
+
+  const revealCandidate = async (seekerId: string) => {
+    if (!currentUser?.id || currentUser.role !== 'recruiter') return false;
+    
+    // Check if already revealed
+    const isRevealed = await checkRevealed(seekerId);
+    if (isRevealed) return true;
+
+    try {
+      // In a real app, check quotas here
+      const { error } = await supabase
+        .from('profile_reveals')
+        .insert({
+          recruiter_id: currentUser.id,
+          seeker_id: seekerId
+        });
+
+      if (error) throw error;
+      
+      // Update local state if needed
+      return true;
+    } catch (error) {
+      console.error('Error revealing candidate:', error);
+      return false;
+    }
   };
 
   return (
@@ -376,7 +557,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       markAllNotificationsRead,
       addNotification,
       purchaseAddOn,
-      toggleAutoRenew
+      toggleAutoRenew,
+      plans,
+      plansLoading,
+      revealCandidate,
+      checkRevealed
     }}>
       {children}
     </AppContext.Provider>
