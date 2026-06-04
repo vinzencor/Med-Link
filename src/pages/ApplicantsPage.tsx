@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import Header from '@/components/layout/Header';
-import { useApp } from '@/context/AppContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -28,14 +27,15 @@ import {
   CheckCircle2,
   XCircle,
   Eye,
-  Download,
+  Video,
   User,
   Loader2
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
+const REVEALED_CANDIDATES_STORAGE_KEY = 'recruiter_revealed_candidates';
+
 const ApplicantsPage: React.FC = () => {
-  const { currentUser } = useApp();
   const [recruiterJobs, setRecruiterJobs] = useState<any[]>([]);
   const [allApplications, setAllApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,15 +58,52 @@ const ApplicantsPage: React.FC = () => {
         if (jobsError) throw jobsError;
         setRecruiterJobs(jobsData || []);
 
-        // Fetch applications
+        const jobIds = (jobsData || []).map(j => j.id);
+        if (jobIds.length === 0) {
+          setAllApplications([]);
+          return;
+        }
+
+        // Fetch applications for recruiter's jobs.
         const { data: appsData, error: appsError } = await supabase
           .from('applications')
-          .select('*, job:jobs(title), applicant:profiles(full_name, email, avatar_url)')
-          .in('job_id', (jobsData || []).map(j => j.id))
+          .select('*, job:jobs(title)')
+          .in('job_id', jobIds)
           .order('created_at', { ascending: false });
 
         if (appsError) throw appsError;
-        setAllApplications(appsData || []);
+
+        const seekerIds = Array.from(new Set((appsData || []).map(app => app.seeker_id).filter(Boolean)));
+        if (seekerIds.length === 0) {
+          setAllApplications(appsData || []);
+          return;
+        }
+
+        // Fetch profile details separately so missing optional columns do not break the applications list.
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('id', seekerIds);
+
+        if (profilesError) {
+          console.warn('Profiles fetch failed, falling back to application fields:', profilesError);
+          setAllApplications(appsData || []);
+          return;
+        }
+
+        const profileById = new Map((profilesData || []).map(profile => [profile.id, profile]));
+        const mergedApplications = (appsData || []).map(app => ({
+          ...app,
+          applicant: profileById.get(app.seeker_id) || {
+            full_name: app.full_name,
+            email: app.email,
+            phone: app.phone,
+            experience: app.experience,
+            cv_url: app.cv_url,
+          },
+        }));
+
+        setAllApplications(mergedApplications);
 
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -95,8 +132,8 @@ const ApplicantsPage: React.FC = () => {
   };
 
   const filteredApplications = allApplications.filter(app => {
-    const name = app.applicant?.full_name || 'Unknown Candidate';
-    const email = app.applicant?.email || '';
+    const name = app.applicant?.full_name || app.full_name || 'Unknown Candidate';
+    const email = app.applicant?.email || app.email || '';
     const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
@@ -190,7 +227,12 @@ const ApplicantsPage: React.FC = () => {
         </div>
 
         {/* Applicants List */}
-        {filteredApplications.length === 0 ? (
+        {loading ? (
+          <div className="card-elevated p-12 text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-muted-foreground" />
+            <p className="text-muted-foreground">Loading applicants...</p>
+          </div>
+        ) : filteredApplications.length === 0 ? (
           <div className="card-elevated p-12 text-center">
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
               <User className="w-8 h-8 text-muted-foreground" />
@@ -230,22 +272,56 @@ const ApplicantsPage: React.FC = () => {
 
 // Extracted Row component to manage local reveal state
 const ApplicantRow = ({ application, job, cvUrl, seekerId, updateStatus, handleViewCV }: any) => {
-  const { checkRevealed, revealCandidate } = useApp();
   const [isRevealed, setIsRevealed] = useState(false);
   const [revealLoading, setRevealLoading] = useState(true);
+  const visibilitySettings = React.useMemo(() => {
+    try {
+      const settings = JSON.parse(localStorage.getItem('recruiter_visibility_settings') || '{}');
+      return settings[seekerId] || {
+        email: true,
+        phone: true,
+        cv: true,
+        video: true,
+        experience: true,
+        bio: true,
+      };
+    } catch {
+      return {
+        email: true,
+        phone: true,
+        cv: true,
+        video: true,
+        experience: true,
+        bio: true,
+      };
+    }
+  }, [seekerId]);
 
   React.useEffect(() => {
-    const init = async () => {
-      const revealed = await checkRevealed(seekerId);
-      setIsRevealed(revealed);
+    const init = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem(REVEALED_CANDIDATES_STORAGE_KEY) || '{}');
+        setIsRevealed(Boolean(seekerId && stored[seekerId]));
+      } catch {
+        setIsRevealed(false);
+      }
       setRevealLoading(false);
     };
     init();
   }, [seekerId]);
 
-  const handleReveal = async () => {
-    const success = await revealCandidate(seekerId);
-    if (success) {
+  const handleReveal = () => {
+    if (!seekerId) {
+      setIsRevealed(true);
+      return;
+    }
+
+    try {
+      const stored = JSON.parse(localStorage.getItem(REVEALED_CANDIDATES_STORAGE_KEY) || '{}');
+      stored[seekerId] = true;
+      localStorage.setItem(REVEALED_CANDIDATES_STORAGE_KEY, JSON.stringify(stored));
+      setIsRevealed(true);
+    } catch {
       setIsRevealed(true);
     }
   };
@@ -270,7 +346,7 @@ const ApplicantRow = ({ application, job, cvUrl, seekerId, updateStatus, handleV
             <img src={application.applicant.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
           ) : (
             <span className="text-lg font-semibold text-primary">
-              {application.applicant?.full_name?.split(' ').map((n: string) => n[0]).join('') || '?'}
+              {(application.applicant?.full_name || application.full_name || 'Unknown Candidate').split(' ').map((n: string) => n[0]).join('') || '?'}
             </span>
           )}
         </div>
@@ -279,7 +355,7 @@ const ApplicantRow = ({ application, job, cvUrl, seekerId, updateStatus, handleV
         <div className="flex-1 min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
             <div>
-              <h3 className="text-lg font-semibold">{application.applicant?.full_name || 'Unknown Candidate'}</h3>
+              <h3 className="text-lg font-semibold">{application.applicant?.full_name || application.full_name || 'Unknown Candidate'}</h3>
               <p className="text-muted-foreground">Applied for: {job?.title}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -314,11 +390,11 @@ const ApplicantRow = ({ application, job, cvUrl, seekerId, updateStatus, handleV
           <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Mail className="w-4 h-4" />
-              {isRevealed ? application.applicant?.email : '••••••••@••••.•••'}
+              {isRevealed && visibilitySettings.email ? (application.applicant?.email || application.email || '--') : '••••••••@••••.•••'}
             </span>
             <span className="flex items-center gap-1">
               <Phone className="w-4 h-4" />
-              {isRevealed ? (application.applicant?.phone || application.phone || '--') : '•••••• ••••'}
+              {isRevealed && visibilitySettings.phone ? (application.applicant?.phone || application.phone || '--') : '•••••• ••••'}
             </span>
             <span className="flex items-center gap-1">
               <Clock className="w-4 h-4" />
@@ -329,7 +405,10 @@ const ApplicantRow = ({ application, job, cvUrl, seekerId, updateStatus, handleV
           {/* Experience */}
           <div className="mt-3 p-3 bg-secondary rounded-lg">
             <p className="text-sm">
-              <span className="font-medium">Experience:</span> {application.experience || 'Not specified'}
+              <span className="font-medium">Experience:</span> {visibilitySettings.experience ? (application.applicant?.experience || application.experience || 'Not specified') : 'Hidden by admin'}
+            </p>
+            <p className="text-sm mt-1">
+              <span className="font-medium">Bio:</span> {visibilitySettings.bio ? (application.applicant?.bio || 'Not provided') : 'Hidden by admin'}
             </p>
           </div>
 
@@ -341,14 +420,25 @@ const ApplicantRow = ({ application, job, cvUrl, seekerId, updateStatus, handleV
                   variant="outline"
                   size="sm"
                   onClick={() => handleViewCV(cvUrl)}
+                  disabled={!visibilitySettings.cv}
                 >
                   <FileText className="w-4 h-4 mr-1" />
-                  View CV
+                  {visibilitySettings.cv ? 'View CV' : 'CV Hidden'}
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.location.href = `mailto:${application.applicant?.email}`}
+                  disabled={!visibilitySettings.video || !application.applicant?.video_url}
+                  onClick={() => application.applicant?.video_url && window.open(application.applicant.video_url, '_blank')}
+                >
+                  <Video className="w-4 h-4 mr-1" />
+                  {!visibilitySettings.video ? 'Video Hidden' : 'View Video'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.href = `mailto:${application.applicant?.email || application.email || ''}`}
+                  disabled={!visibilitySettings.email}
                 >
                   <Mail className="w-4 h-4 mr-1" />
                   Contact

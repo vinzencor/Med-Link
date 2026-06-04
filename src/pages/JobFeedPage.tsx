@@ -16,7 +16,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, SlidersHorizontal, MapPin, X } from 'lucide-react';
+import { Search, SlidersHorizontal, MapPin, X, Megaphone, ExternalLink } from 'lucide-react';
+
+interface ApprovedAd {
+  id: string;
+  title: string;
+  ad_type: 'image' | 'video';
+  placement: string;
+  target_location: string;
+  media_url?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+}
 
 const JobFeedPage: React.FC = () => {
   const { currentUser, jobs, jobsLoading } = useApp();
@@ -28,6 +39,38 @@ const JobFeedPage: React.FC = () => {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showApply, setShowApply] = useState(false);
+  const [approvedAds, setApprovedAds] = useState<ApprovedAd[]>([]);
+
+  React.useEffect(() => {
+    const fetchApprovedAds = async () => {
+      let dbAds: ApprovedAd[] = [];
+      try {
+        const { data } = await supabase
+          .from('ad_requests')
+          .select('id, title, ad_type, placement, target_location, media_url, status, created_at')
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false });
+        dbAds = (data || []) as ApprovedAd[];
+      } catch {
+        dbAds = [];
+      }
+
+      const localAds = (JSON.parse(localStorage.getItem('mock_ad_requests') || '[]') as ApprovedAd[])
+        .filter(ad => ad.status === 'approved');
+
+      const merged = [...dbAds, ...localAds.filter(local => !dbAds.some(db => db.id === local.id))]
+        .sort((a, b) => {
+          const rank = (p: string) => (p === 'job_feed_top' ? 0 : p === 'dashboard_banner' ? 1 : 2);
+          const placementDiff = rank(a.placement) - rank(b.placement);
+          if (placementDiff !== 0) return placementDiff;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+
+      setApprovedAds(merged);
+    };
+
+    fetchApprovedAds();
+  }, []);
 
   // loading state comes from context now
   const loading = jobsLoading;
@@ -82,6 +125,40 @@ const JobFeedPage: React.FC = () => {
             Browse {filteredJobs.length} healthcare positions matching your criteria
           </p>
         </div>
+
+        {approvedAds.length > 0 && (
+          <div className="space-y-4 mb-6">
+            {approvedAds.map(ad => (
+              <div key={ad.id} className="card-elevated p-4 border-primary/20 bg-primary/5">
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex items-center gap-2">
+                    <Megaphone className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-semibold uppercase text-primary">Approved Sponsored Ad</span>
+                  </div>
+                  <Badge variant="outline" className="text-xs">{ad.placement}</Badge>
+                </div>
+                <h3 className="text-lg font-semibold mb-1">{ad.title}</h3>
+                <p className="text-sm text-muted-foreground mb-3">Target location: {ad.target_location}</p>
+
+                {ad.media_url && ad.ad_type === 'image' && (
+                  <img src={ad.media_url} alt={ad.title} className="w-full max-h-52 object-cover rounded-lg border border-border" />
+                )}
+
+                {ad.media_url && ad.ad_type === 'video' && (
+                  <video src={ad.media_url} controls className="w-full max-h-64 rounded-lg border border-border bg-black" />
+                )}
+
+                {ad.media_url && (
+                  <div className="mt-3">
+                    <Button variant="outline" size="sm" onClick={() => window.open(ad.media_url, '_blank')}>
+                      <ExternalLink className="w-4 h-4 mr-1" /> Open Ad Asset
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Search & Filters */}
         <div className="card-elevated p-4 mb-6">

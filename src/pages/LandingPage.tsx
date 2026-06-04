@@ -2,9 +2,11 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/lib/supabase';
+import { motion } from 'motion/react';
+import { TestimonialsColumn, type TestimonialItem } from '@/components/ui/testimonials-columns-1';
 import {
   Briefcase,
-  Users,
   Shield,
   TrendingUp,
   CheckCircle2,
@@ -15,6 +17,26 @@ import {
 } from 'lucide-react';
 
 const LandingPage: React.FC = () => {
+  const [profiles, setProfiles] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchProfiles = async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, full_name, role, bio, avatar_url, created_at')
+          .in('role', ['student', 'job_seeker', 'recruiter'])
+          .order('created_at', { ascending: false })
+          .limit(20);
+        setProfiles(data || []);
+      } catch (error) {
+        console.error('Failed to load profile scroller:', error);
+      }
+    };
+
+    fetchProfiles();
+  }, []);
+
   const stats = [
     { value: '10,000+', label: 'Healthcare Jobs' },
     { value: '5,000+', label: 'Nursing Professionals' },
@@ -44,6 +66,41 @@ const LandingPage: React.FC = () => {
       description: 'Specialized platform for nursing and healthcare professionals only.'
     }
   ];
+
+  const fallbackImages = [
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=80&q=80',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=80&q=80',
+    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=80&q=80',
+    'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=80&q=80',
+    'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=80&q=80',
+    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=80&q=80',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80',
+    'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=80&q=80',
+    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=80&q=80',
+  ];
+
+  const testimonials: TestimonialItem[] = profiles.map((profile, index) => ({
+    text: profile.bio || 'Active member of Medlink community.',
+    image: profile.avatar_url || fallbackImages[index % fallbackImages.length],
+    name: profile.full_name || 'Community Member',
+    role: profile.role === 'job_seeker' ? 'Professional' : profile.role === 'student' ? 'Student' : 'Recruiter',
+  }));
+
+  const safeTestimonials = testimonials.length >= 9
+    ? testimonials.slice(0, 9)
+    : [
+        ...testimonials,
+        ...new Array(Math.max(0, 9 - testimonials.length)).fill(0).map((_, i) => ({
+          text: 'Building a trusted healthcare hiring network with verified profiles.',
+          image: fallbackImages[i % fallbackImages.length],
+          name: `Medlink Member ${i + 1}`,
+          role: i % 2 === 0 ? 'Professional' : 'Student',
+        }))
+      ];
+
+  const firstColumn = safeTestimonials.slice(0, 3);
+  const secondColumn = safeTestimonials.slice(3, 6);
+  const thirdColumn = safeTestimonials.slice(6, 9);
 
   return (
     <div className="min-h-screen">
@@ -99,7 +156,7 @@ const LandingPage: React.FC = () => {
       <section className="py-20 bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4">Why Choose NurseHub</Badge>
+            <Badge variant="secondary" className="mb-4">Why Choose Medlink</Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">Built for Healthcare Professionals</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Everything you need to find your next healthcare position or hire top nursing talent.
@@ -120,6 +177,36 @@ const LandingPage: React.FC = () => {
                 <p className="text-muted-foreground">{feature.description}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Community Profiles */}
+      <section className="bg-background my-20 relative border-t border-border pt-14">
+        <div className="container z-10 mx-auto px-4 sm:px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+            viewport={{ once: true }}
+            className="flex flex-col items-center justify-center max-w-[540px] mx-auto"
+          >
+            <div className="flex justify-center">
+              <div className="border py-1 px-4 rounded-lg">Community Profiles</div>
+            </div>
+
+            <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-bold tracking-tighter mt-5">
+              Meet our healthcare community
+            </h2>
+            <p className="text-center mt-5 opacity-75">
+              Students, professionals, and recruiters who are actively using Medlink.
+            </p>
+          </motion.div>
+
+          <div className="flex justify-center gap-6 mt-10 [mask-image:linear-gradient(to_bottom,transparent,black_25%,black_75%,transparent)] max-h-[740px] overflow-hidden">
+            <TestimonialsColumn testimonials={firstColumn} duration={15} />
+            <TestimonialsColumn testimonials={secondColumn} className="hidden md:block" duration={19} />
+            <TestimonialsColumn testimonials={thirdColumn} className="hidden lg:block" duration={17} />
           </div>
         </div>
       </section>
@@ -199,7 +286,7 @@ const LandingPage: React.FC = () => {
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Briefcase className="w-4 h-4 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg">NurseHub</span>
+              <span className="font-bold text-lg">Medlink</span>
             </div>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link>
@@ -207,7 +294,7 @@ const LandingPage: React.FC = () => {
               <Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link>
               <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
             </div>
-            <p className="text-sm text-muted-foreground">© 2024 NurseHub. All rights reserved.</p>
+            <p className="text-sm text-muted-foreground">© 2024 Medlink. All rights reserved.</p>
           </div>
         </div>
       </footer>

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
     Dialog,
     DialogContent,
@@ -29,8 +30,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, FileText, LogOut, CheckCircle, XCircle, Clock, Loader2, MapPin, Building2, DollarSign, Edit, Trash2, Key, TrendingUp, MessageSquare, Phone, Mail, Calendar, Briefcase, Video, Shield, ShieldCheck, ShieldOff, BarChart2, Megaphone, Eye, AlertTriangle, UserCheck, UserX, RefreshCw, Download, Plus, Image, Settings, Filter, Search, ExternalLink } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { LayoutDashboard, Users, FileText, LogOut, CheckCircle, XCircle, Clock, Loader2, MapPin, Building2, DollarSign, Edit, Trash2, Key, MessageSquare, Mail, Briefcase, Video, ShieldCheck, ShieldOff, BarChart2, Megaphone, Eye, EyeOff, UserCheck, UserX, RefreshCw, Download, Plus, Image, House, ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -67,137 +68,45 @@ interface UserProfile {
     created_at: string;
     avatar_url: string | null;
     bio: string | null;
-    subscription?: any;
-    reveals_used?: number;
-    applications_used?: number;
-    video_url?: string;
-    video_status?: string;
-    video_rejection_reason?: string;
+    experience?: string | null;
+    cv_url?: string | null;
+    video_url?: string | null;
+    video_status?: 'pending' | 'approved' | 'rejected' | null;
 }
 
-interface Plan {
+interface ApplicantDocument {
     id: string;
-    user_type: 'job_seeker' | 'recruiter';
+    user_id: string;
     name: string;
-    price: number;
-    billing_cycle: string;
-    features: string[];
-    applications_limit?: number;
-    reveals_limit?: number;
-    is_active: boolean;
+    type: string;
+    url: string;
+    status: 'pending' | 'verified' | 'rejected';
+    created_at?: string;
 }
 
-const AdminPlanCard = ({ plan, onUpdate }: { plan: Plan; onUpdate: () => void }) => {
-    const { toast } = useToast();
-    const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({
-        price: plan.price,
-        applications_limit: plan.applications_limit || 0,
-        reveals_limit: plan.reveals_limit || 0,
-        is_active: plan.is_active
-    });
-
-    const handleSave = async () => {
-        try {
-            const { error } = await supabase
-                .from('subscription_plans')
-                .update({
-                    price: formData.price,
-                    applications_limit: formData.applications_limit === 0 && plan.user_type === 'job_seeker' ? null : formData.applications_limit,
-                    reveals_limit: formData.reveals_limit === 0 && plan.user_type === 'recruiter' ? null : formData.reveals_limit,
-                    is_active: formData.is_active
-                })
-                .eq('id', plan.id);
-
-            if (error) throw error;
-
-            toast({ title: 'Plan Updated', description: `${plan.name} configuration saved.` });
-            setIsEditing(false);
-            onUpdate();
-        } catch (error) {
-            console.error('Error updating plan:', error);
-            toast({ title: 'Update Failed', variant: 'destructive' });
-        }
-    };
-
-    return (
-        <div className="bg-white p-5 rounded-xl border shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-                <div>
-                    <h4 className="font-bold text-gray-900">{plan.name}</h4>
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">{plan.billing_cycle}</p>
-                </div>
-                <Badge className={plan.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}>
-                    {plan.is_active ? 'Active' : 'Disabled'}
-                </Badge>
-            </div>
-
-            <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                        <Label className="text-xs">Price (Â£)</Label>
-                        <Input 
-                            type="number" 
-                            value={formData.price} 
-                            disabled={!isEditing}
-                            onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <Label className="text-xs">
-                            {plan.user_type === 'job_seeker' ? 'App Limit (0=âˆž)' : 'Reveal Limit (0=âˆž)'}
-                        </Label>
-                        <Input 
-                            type="number" 
-                            value={plan.user_type === 'job_seeker' ? formData.applications_limit : formData.reveals_limit} 
-                            disabled={!isEditing}
-                            onChange={(e) => plan.user_type === 'job_seeker' 
-                                ? setFormData({ ...formData, applications_limit: Number(e.target.value) })
-                                : setFormData({ ...formData, reveals_limit: Number(e.target.value) })
-                            }
-                        />
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <input 
-                        type="checkbox" 
-                        id={`active-${plan.id}`}
-                        checked={formData.is_active}
-                        disabled={!isEditing}
-                        onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                    />
-                    <Label htmlFor={`active-${plan.id}`} className="text-sm">Available for purchase</Label>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                    {isEditing ? (
-                        <>
-                            <Button size="sm" className="flex-1" onClick={handleSave}>Save</Button>
-                            <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
-                        </>
-                    ) : (
-                        <Button size="sm" variant="outline" className="w-full" onClick={() => setIsEditing(true)}>
-                            <Edit className="w-4 h-4 mr-2" /> Edit Plan
-                        </Button>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-interface Plan {
+interface AdRequest {
     id: string;
-    user_type: 'job_seeker' | 'recruiter';
-    name: string;
-    price: number;
-    billing_cycle: string;
-    features: string[];
-    applications_limit?: number;
-    reveals_limit?: number;
-    is_active: boolean;
+    recruiter_id: string;
+    title: string;
+    ad_type: 'image' | 'video';
+    placement: string;
+    target_location: string;
+    payment_reference: string;
+    budget?: number;
+    document_url?: string;
+    media_url?: string;
+    status: 'pending' | 'approved' | 'rejected';
+    created_at: string;
 }
+
+type VisibilityMap = Record<string, {
+    email: boolean;
+    phone: boolean;
+    cv: boolean;
+    video: boolean;
+    experience: boolean;
+    bio: boolean;
+}>;
 
 const AdminDashboard = () => {
     const { signOut, user } = useAuth();
@@ -212,12 +121,10 @@ const AdminDashboard = () => {
     });
     const [jobs, setJobs] = useState<JobWithRecruiter[]>([]);
     const [users, setUsers] = useState<UserProfile[]>([]);
-    const [plans, setPlans] = useState<Plan[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'overview' | 'jobs' | 'users' | 'applicants' | 'employers' | 'revenue' | 'ads' | 'plans'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'jobs' | 'users' | 'applicants' | 'employers' | 'revenue' | 'ads'>('overview');
     const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
     const [userFilter, setUserFilter] = useState<'all' | 'student' | 'job_seeker' | 'recruiter' | 'admin'>('all');
-    const [planFilter, setPlanFilter] = useState<string>('all');
     const [monthlyIntakeLocked, setMonthlyIntakeLocked] = useState(false);
     const [monthlyIntakeCount] = useState(73); // mock count
 
@@ -226,8 +133,20 @@ const AdminDashboard = () => {
     const [deleteUserDialog, setDeleteUserDialog] = useState(false);
     const [changePasswordDialog, setChangePasswordDialog] = useState(false);
     const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-    const [editForm, setEditForm] = useState({ full_name: '', email: '', role: '', phone: '' });
+    const [editForm, setEditForm] = useState({
+        full_name: '',
+        email: '',
+        role: '',
+        phone: '',
+        bio: '',
+        experience: '',
+        cv_url: '',
+        video_url: '',
+        video_status: 'pending'
+    });
     const [newPassword, setNewPassword] = useState('');
+    const [applicantDocuments, setApplicantDocuments] = useState<ApplicantDocument[]>([]);
+    const [loadingApplicantDocuments, setLoadingApplicantDocuments] = useState(false);
 
     // Chart data
     const [userGrowthData, setUserGrowthData] = useState<any[]>([]);
@@ -237,6 +156,15 @@ const AdminDashboard = () => {
     const [chatDialogOpen, setChatDialogOpen] = useState(false);
     const [selectedJobForChat, setSelectedJobForChat] = useState<JobWithRecruiter | null>(null);
     const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
+    const [pendingDocumentUserIds, setPendingDocumentUserIds] = useState<Set<string>>(new Set());
+    const [adRequests, setAdRequests] = useState<AdRequest[]>([]);
+    const [visibilitySettings, setVisibilitySettings] = useState<VisibilityMap>(() => {
+        try {
+            return JSON.parse(localStorage.getItem('recruiter_visibility_settings') || '{}');
+        } catch {
+            return {};
+        }
+    });
 
     useEffect(() => {
         fetchDashboardData();
@@ -290,15 +218,66 @@ const AdminDashboard = () => {
         setChatDialogOpen(true);
     };
 
+    const getVisibility = (userId: string) => {
+        return visibilitySettings[userId] || {
+            email: true,
+            phone: true,
+            cv: true,
+            video: true,
+            experience: true,
+            bio: true,
+        };
+    };
+
+    const toggleVisibilityField = (userId: string, field: 'email' | 'phone' | 'cv' | 'video' | 'experience' | 'bio') => {
+        setVisibilitySettings(prev => {
+            const current = getVisibility(userId);
+            const next = {
+                ...prev,
+                [userId]: {
+                    ...current,
+                    [field]: !current[field],
+                }
+            };
+            localStorage.setItem('recruiter_visibility_settings', JSON.stringify(next));
+            return next;
+        });
+    };
+
     // User management handlers
-    const handleEditUser = (user: UserProfile) => {
+    const handleEditUser = async (user: UserProfile) => {
         setSelectedUser(user);
         setEditForm({
             full_name: user.full_name || '',
             email: user.email,
             role: user.role,
-            phone: user.phone || ''
+            phone: user.phone || '',
+            bio: user.bio || '',
+            experience: user.experience || '',
+            cv_url: user.cv_url || '',
+            video_url: user.video_url || '',
+            video_status: user.video_status || 'pending'
         });
+
+        if (['student', 'job_seeker'].includes(user.role)) {
+            setLoadingApplicantDocuments(true);
+            try {
+                const { data } = await supabase
+                    .from('user_documents')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false });
+                setApplicantDocuments((data || []) as ApplicantDocument[]);
+            } catch (error) {
+                console.error('Error loading applicant documents:', error);
+                setApplicantDocuments([]);
+            } finally {
+                setLoadingApplicantDocuments(false);
+            }
+        } else {
+            setApplicantDocuments([]);
+        }
+
         setEditUserDialog(true);
     };
 
@@ -312,7 +291,12 @@ const AdminDashboard = () => {
                     full_name: editForm.full_name,
                     email: editForm.email,
                     role: editForm.role,
-                    phone: editForm.phone
+                    phone: editForm.phone,
+                    bio: editForm.bio,
+                    experience: editForm.experience,
+                    cv_url: editForm.cv_url,
+                    video_url: editForm.video_url,
+                    video_status: editForm.video_status
                 })
                 .eq('id', selectedUser.id);
 
@@ -324,6 +308,7 @@ const AdminDashboard = () => {
             });
 
             setEditUserDialog(false);
+            setSelectedUser(null);
             fetchDashboardData();
         } catch (error) {
             console.error('Error updating user:', error);
@@ -388,105 +373,14 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleApproveVideo = async (userId: string, name: string) => {
-        try {
-            await supabase.from('profiles').update({ video_status: 'approved' }).eq('id', userId);
-            await supabase.from('notifications').insert({
-                user_id: userId,
-                type: 'video_approved',
-                title: 'Video Approved! 🎉',
-                message: 'Your introduction video has been approved. You can now apply for jobs.'
-            });
-            toast({ title: 'Video Approved', description: `${name}'s video has been approved and they've been notified.` });
-            fetchDashboardData();
-        } catch (error) {
-            console.error('Error approving video:', error);
-            toast({ title: 'Error', description: 'Failed to approve video', variant: 'destructive' });
-        }
-    };
-
-    const handleRejectVideo = async (userId: string, name: string, reason: string) => {
-        try {
-            await supabase.from('profiles').update({ 
-                video_status: 'rejected',
-                video_rejection_reason: reason 
-            }).eq('id', userId);
-            await supabase.from('notifications').insert({
-                user_id: userId,
-                type: 'video_rejected',
-                title: 'Video Rejected',
-                message: `Your video was not approved. Reason: ${reason}. Please re-upload a new video.`
-            });
-            toast({ title: 'Video Rejected', description: `${name}'s video has been rejected.` });
-            fetchDashboardData();
-        } catch (error) {
-            console.error('Error rejecting video:', error);
-            toast({ title: 'Error', description: 'Failed to reject video', variant: 'destructive' });
-        }
-    };
-
-    const handleApproveDocs = async (userId: string, name: string) => {
-        try {
-            await supabase.from('user_documents').update({ status: 'verified' }).eq('user_id', userId);
-            await supabase.from('notifications').insert({
-                user_id: userId,
-                type: 'docs_verified',
-                title: 'Documents Verified ✓',
-                message: 'Your documents have been verified. Your profile is now more credible to employers.'
-            });
-            toast({ title: 'Documents verified', description: `${name}'s documents approved.` });
-            fetchDashboardData();
-        } catch (error) {
-            console.error('Error approving docs:', error);
-            toast({ title: 'Error', description: 'Failed to approve documents', variant: 'destructive' });
-        }
-    };
-
-    const handleRejectDocs = async (userId: string, name: string, reason: string) => {
-        try {
-            await supabase.from('user_documents').update({ 
-                status: 'rejected',
-                rejection_reason: reason 
-            }).eq('user_id', userId);
-            await supabase.from('notifications').insert({
-                user_id: userId,
-                type: 'docs_rejected',
-                title: 'Documents Rejected',
-                message: `Your documents were rejected. Reason: ${reason}`
-            });
-            toast({ title: 'Documents rejected', description: `${name}'s documents rejected.`, variant: 'destructive' });
-            fetchDashboardData();
-        } catch (error) {
-            console.error('Error rejecting docs:', error);
-            toast({ title: 'Error', description: 'Failed to reject documents', variant: 'destructive' });
-        }
-    };
-
-    const handleResetReveals = async (userId: string) => {
-        try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ reveals_used: 0 })
-                .eq('id', userId);
-
-            if (error) throw error;
-
-            toast({ title: 'Success', description: 'Reveal counter reset successfully' });
-            fetchDashboardData();
-        } catch (error) {
-            console.error('Error resetting reveals:', error);
-            toast({ title: 'Error', description: 'Failed to reset reveal counter', variant: 'destructive' });
-        }
-    };
-
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
 
-            // Fetch all users with subscription info
+            // Fetch all users
             const { data: usersData, error: usersError } = await supabase
                 .from('profiles')
-                .select('*, subscription:subscriptions(plan_id, plan:subscription_plans(*))')
+                .select('*')
                 .order('created_at', { ascending: false });
 
             if (usersError) throw usersError;
@@ -504,19 +398,19 @@ const AdminDashboard = () => {
                 .from('applications')
                 .select('*', { count: 'exact', head: true });
 
+            // Fetch pending user document owners
+            const { data: pendingDocsData } = await supabase
+                .from('user_documents')
+                .select('user_id')
+                .eq('status', 'pending');
+
+            setPendingDocumentUserIds(new Set((pendingDocsData || []).map((d: any) => d.user_id)));
+
             // Fetch applications with dates for chart
             const { data: appsData } = await supabase
                 .from('applications')
                 .select('created_at, status')
                 .order('created_at', { ascending: true });
-
-            // Fetch plans
-            const { data: plansData } = await supabase
-                .from('subscription_plans')
-                .select('*')
-                .order('price', { ascending: true });
-
-            setPlans(plansData || []);
 
             const jobsWithRecruiter = (jobsData || []).map(job => ({
                 ...job,
@@ -567,6 +461,23 @@ const AdminDashboard = () => {
                 { name: 'Hired', value: statusCounts.hired, color: '#10b981' },
                 { name: 'Rejected', value: statusCounts.rejected, color: '#ef4444' },
             ]);
+
+            // Fetch recruiter ad requests (DB if available + local fallback)
+            let dbAdRequests: AdRequest[] = [];
+            try {
+                const { data: adData } = await supabase
+                    .from('ad_requests')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                dbAdRequests = (adData || []) as AdRequest[];
+            } catch {
+                dbAdRequests = [];
+            }
+
+            const localAdRequests = JSON.parse(localStorage.getItem('mock_ad_requests') || '[]') as AdRequest[];
+            const merged = [...dbAdRequests, ...localAdRequests.filter(local => !dbAdRequests.some(db => db.id === local.id))]
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            setAdRequests(merged);
 
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
@@ -646,6 +557,33 @@ const AdminDashboard = () => {
     };
 
     const filteredJobs = filterStatus === 'all' ? jobs : jobs.filter(j => j.status === filterStatus);
+    const pendingApplicants = users.filter(u => {
+        if (!['student', 'job_seeker'].includes(u.role)) return false;
+        return pendingDocumentUserIds.has(u.id) || u.video_status === 'pending';
+    });
+    const pendingStudents = pendingApplicants.filter(u => u.role === 'student');
+    const pendingProfessionals = pendingApplicants.filter(u => u.role === 'job_seeker');
+    const approvedAdRequests = adRequests.filter(r => r.status === 'approved');
+
+    const updateAdRequestStatus = async (requestId: string, status: 'approved' | 'rejected') => {
+        try {
+            await supabase.from('ad_requests').update({ status }).eq('id', requestId);
+        } catch {
+            // local fallback still updates UI
+        }
+
+        const next = adRequests.map(r => r.id === requestId ? { ...r, status } : r);
+        setAdRequests(next);
+        localStorage.setItem('mock_ad_requests', JSON.stringify(next));
+        toast({
+            title: status === 'approved' ? 'Ad request approved' : 'Ad request rejected',
+            description: 'Recruiter ad request status has been updated.'
+        });
+    };
+
+    const removeApprovedAd = async (requestId: string) => {
+        await updateAdRequestStatus(requestId, 'rejected');
+    };
 
     return (
         <div className="min-h-screen bg-gray-100">
@@ -662,6 +600,11 @@ const AdminDashboard = () => {
                         onClick={() => setActiveTab('overview')}
                     >
                         <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-800" asChild>
+                        <Link to="/">
+                            <House className="mr-2 h-4 w-4" /> Home
+                        </Link>
                     </Button>
                     <Button
                         variant="ghost"
@@ -707,13 +650,6 @@ const AdminDashboard = () => {
                         onClick={() => setActiveTab('revenue')}
                     >
                         <BarChart2 className="mr-2 h-4 w-4" /> Revenue
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        className={`w-full justify-start ${activeTab === 'plans' ? 'bg-gray-800 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
-                        onClick={() => setActiveTab('plans')}
-                    >
-                        <Settings className="mr-2 h-4 w-4" /> Plan Management
                     </Button>
                     <Button
                         variant="ghost"
@@ -821,6 +757,25 @@ const AdminDashboard = () => {
                                                 ))}
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-8">
+                                    <div className="p-6 border-b border-gray-200">
+                                        <h3 className="text-xl font-bold text-gray-800">Recent Profiles</h3>
+                                    </div>
+                                    <div className="divide-y divide-gray-100">
+                                        {users.slice(0, 6).map(profile => (
+                                            <div key={profile.id} className="p-4 flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-medium text-gray-900">{profile.full_name || 'N/A'}</p>
+                                                    <p className="text-sm text-gray-500">{profile.email}</p>
+                                                </div>
+                                                <Badge className="bg-gray-100 text-gray-700">
+                                                    {profile.role === 'job_seeker' ? 'Professional' : profile.role}
+                                                </Badge>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 
@@ -1036,17 +991,6 @@ const AdminDashboard = () => {
                                         <p className="text-gray-600 mt-1">Manage all platform users</p>
                                     </div>
                                     <div className="flex gap-2">
-                                        <Select value={planFilter} onValueChange={setPlanFilter}>
-                                            <SelectTrigger className="w-[150px]">
-                                                <SelectValue placeholder="Filter by Plan" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">All Plans</SelectItem>
-                                                <SelectItem value="free">Free</SelectItem>
-                                                <SelectItem value="pro">Pro</SelectItem>
-                                                <SelectItem value="elite">Elite</SelectItem>
-                                            </SelectContent>
-                                        </Select>
                                         <Button
                                             variant={userFilter === 'all' ? 'default' : 'outline'}
                                             onClick={() => setUserFilter('all')}
@@ -1096,7 +1040,6 @@ const AdminDashboard = () => {
                                             <tbody className="bg-white divide-y divide-gray-200">
                                                 {users
                                                     .filter(u => userFilter === 'all' || u.role === userFilter)
-                                                    .filter(u => planFilter === 'all' || u.subscription?.plan === planFilter)
                                                     .map(user => (
                                                         <tr key={user.id} className="hover:bg-gray-50">
                                                             <td className="px-6 py-4 whitespace-nowrap">
@@ -1191,6 +1134,44 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
 
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                                    <div className="bg-white rounded-xl border shadow-sm p-5">
+                                        <h3 className="font-semibold text-gray-800 mb-2">Pending Students for Approval</h3>
+                                        <p className="text-sm text-gray-500 mb-4">{pendingStudents.length} pending profiles</p>
+                                        <div className="space-y-2 max-h-52 overflow-y-auto">
+                                            {pendingStudents.length === 0 ? (
+                                                <p className="text-sm text-gray-500">No pending student profiles.</p>
+                                            ) : pendingStudents.map(u => (
+                                                <div key={u.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-800">{u.full_name || 'N/A'}</p>
+                                                        <p className="text-xs text-gray-500">{u.email}</p>
+                                                    </div>
+                                                    <Badge className="bg-purple-100 text-purple-700 text-xs">Student</Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-xl border shadow-sm p-5">
+                                        <h3 className="font-semibold text-gray-800 mb-2">Pending Professionals for Approval</h3>
+                                        <p className="text-sm text-gray-500 mb-4">{pendingProfessionals.length} pending profiles</p>
+                                        <div className="space-y-2 max-h-52 overflow-y-auto">
+                                            {pendingProfessionals.length === 0 ? (
+                                                <p className="text-sm text-gray-500">No pending professional profiles.</p>
+                                            ) : pendingProfessionals.map(u => (
+                                                <div key={u.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-800">{u.full_name || 'N/A'}</p>
+                                                        <p className="text-xs text-gray-500">{u.email}</p>
+                                                    </div>
+                                                    <Badge className="bg-blue-100 text-blue-700 text-xs">Professional</Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Applicants table - uses the users list filtered to professionals */}
                                 <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                                     <div className="p-5 border-b flex items-center justify-between">
@@ -1211,6 +1192,8 @@ const AdminDashboard = () => {
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Documents</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Video</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CV / Video</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recruiter Visibility</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                                 </tr>
@@ -1230,48 +1213,57 @@ const AdminDashboard = () => {
                                                         <td className="px-6 py-4">
                                                             <div className="flex gap-1">
                                                                 <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-green-600 border-green-200 hover:bg-green-50"
-                                                                    onClick={() => handleApproveDocs(applicant.id, applicant.full_name || 'User')}>
+                                                                    onClick={async () => {
+                                                                        await supabase.from('user_documents').update({ status: 'verified' }).eq('user_id', applicant.id);
+                                                                        toast({ title: 'Documents verified', description: `${applicant.full_name}'s documents approved.` });
+                                                                    }}>
                                                                     <ShieldCheck className="w-3 h-3 mr-1" /> Verify
                                                                 </Button>
                                                                 <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-red-600 border-red-200 hover:bg-red-50"
-                                                                    onClick={() => {
-                                                                        const reason = prompt('Reason for rejection:');
-                                                                        if (reason) handleRejectDocs(applicant.id, applicant.full_name || 'User', reason);
+                                                                    onClick={async () => {
+                                                                        await supabase.from('user_documents').update({ status: 'rejected' }).eq('user_id', applicant.id);
+                                                                        toast({ title: 'Documents rejected', description: `${applicant.full_name}'s documents rejected.`, variant: 'destructive' });
                                                                     }}>
                                                                     <ShieldOff className="w-3 h-3 mr-1" /> Reject
                                                                 </Button>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <div className="flex flex-col gap-2">
-                                                                <div className="flex gap-1">
-                                                                    {applicant.video_url ? (
-                                                                        <Button size="sm" variant="ghost" className="h-7 text-xs px-2 text-blue-600" 
-                                                                            onClick={() => window.open(applicant.video_url, '_blank')}>
-                                                                            <ExternalLink className="w-3 h-3 mr-1" /> View Video
-                                                                        </Button>
-                                                                    ) : (
-                                                                        <span className="text-xs text-gray-400">No Video</span>
-                                                                    )}
-                                                                </div>
-                                                                {applicant.video_url && applicant.video_status !== 'approved' && (
-                                                                    <div className="flex gap-1">
-                                                                        <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-green-600 border-green-200 hover:bg-green-50"
-                                                                            onClick={() => handleApproveVideo(applicant.id, applicant.full_name || 'User')}>
-                                                                            <CheckCircle className="w-3 h-3 mr-1" /> Approve
-                                                                        </Button>
-                                                                        <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-red-600 border-red-200 hover:bg-red-50"
-                                                                            onClick={() => {
-                                                                                const reason = prompt('Reason for rejection:');
-                                                                                if (reason) handleRejectVideo(applicant.id, applicant.full_name || 'User', reason);
-                                                                            }}>
-                                                                            <XCircle className="w-3 h-3 mr-1" /> Reject
-                                                                        </Button>
-                                                                    </div>
-                                                                )}
-                                                                {applicant.video_status === 'approved' && (
-                                                                    <Badge className="bg-green-100 text-green-700 w-fit">Approved</Badge>
-                                                                )}
+                                                            <div className="flex gap-1">
+                                                                <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-green-600 border-green-200 hover:bg-green-50"
+                                                                    onClick={async () => {
+                                                                        await supabase.from('profiles').update({ video_status: 'approved' }).eq('id', applicant.id);
+                                                                        toast({ title: 'Video approved', description: `${applicant.full_name}'s video is approved.` });
+                                                                    }}>
+                                                                    <Video className="w-3 h-3 mr-1" /> Approve
+                                                                </Button>
+                                                                <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-red-600 border-red-200 hover:bg-red-50"
+                                                                    onClick={async () => {
+                                                                        await supabase.from('profiles').update({ video_status: 'rejected' }).eq('id', applicant.id);
+                                                                        toast({ title: 'Video rejected', description: `${applicant.full_name}'s video rejected.`, variant: 'destructive' });
+                                                                    }}>
+                                                                    <XCircle className="w-3 h-3 mr-1" /> Reject
+                                                                </Button>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-xs text-gray-600">
+                                                            <p>CV: {applicant.cv_url ? 'Uploaded' : 'Missing'}</p>
+                                                            <p>Video: {applicant.video_url ? applicant.video_status || 'uploaded' : 'Missing'}</p>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="grid grid-cols-2 gap-1">
+                                                                {(['email', 'phone', 'cv', 'video', 'experience', 'bio'] as const).map(field => (
+                                                                    <Button
+                                                                        key={field}
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-7 text-[10px] px-2"
+                                                                        onClick={() => toggleVisibilityField(applicant.id, field)}
+                                                                    >
+                                                                        {getVisibility(applicant.id)[field] ? <Eye className="w-3 h-3 mr-1" /> : <EyeOff className="w-3 h-3 mr-1" />}
+                                                                        {field}
+                                                                    </Button>
+                                                                ))}
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4 text-sm text-gray-500">
@@ -1326,19 +1318,15 @@ const AdminDashboard = () => {
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-sm font-medium">
-                                                                    {employer.reveals_used || 0} / {employer.subscription?.plan?.reveals_limit === -1 ? '∞' : (employer.subscription?.plan?.reveals_limit || '—')}
-                                                                </span>
+                                                                <span className="text-sm font-medium">— / —</span>
                                                                 <Button size="sm" variant="ghost" className="h-6 text-xs text-blue-600"
-                                                                    onClick={() => handleResetReveals(employer.id)}>
+                                                                    onClick={() => toast({ title: 'Reveals Reset', description: `Reveal counter for ${employer.full_name} has been reset.` })}>
                                                                     <RefreshCw className="w-3 h-3 mr-1" /> Reset
                                                                 </Button>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <Badge className="bg-primary/10 text-primary text-xs">
-                                                                {employer.subscription?.plan?.name || 'No Plan'}
-                                                            </Badge>
+                                                            <Badge className="bg-primary/10 text-primary text-xs">Active</Badge>
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex gap-1">
@@ -1369,48 +1357,6 @@ const AdminDashboard = () => {
                             </>
                         )}
 
-                        {/* ── PLAN MANAGEMENT TAB ── */}
-                        {activeTab === 'plans' && (
-                            <>
-                                <div className="mb-8 flex items-center justify-between">
-                                    <div>
-                                        <h2 className="text-3xl font-bold text-gray-800">Plan Management</h2>
-                                        <p className="text-gray-600 mt-1">Configure pricing, limits, and features for subscription tiers</p>
-                                    </div>
-                                    <Button className="bg-primary text-white" onClick={() => toast({ title: 'Coming Soon', description: 'Adding new plans from the UI will be available in the next update.' })}>
-                                        <Plus className="w-4 h-4 mr-2" /> New Plan
-                                    </Button>
-                                </div>
-
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                                    {/* Job Seeker Plans */}
-                                    <div className="space-y-4">
-                                        <h3 className="text-lg font-semibold flex items-center gap-2">
-                                            <UserCheck className="w-5 h-5 text-blue-500" />
-                                            Job Seeker Plans
-                                        </h3>
-                                        <div className="grid gap-4">
-                                            {plans.filter(p => p.user_type === 'job_seeker').map(plan => (
-                                                <AdminPlanCard key={plan.id} plan={plan} onUpdate={fetchDashboardData} />
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Recruiter Plans */}
-                                    <div className="space-y-4">
-                                        <h3 className="text-lg font-semibold flex items-center gap-2">
-                                            <Building2 className="w-5 h-5 text-indigo-500" />
-                                            Recruiter Plans
-                                        </h3>
-                                        <div className="grid gap-4">
-                                            {plans.filter(p => p.user_type === 'recruiter').map(plan => (
-                                                <AdminPlanCard key={plan.id} plan={plan} onUpdate={fetchDashboardData} />
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </>
-                        )}
                         {/* ── REVENUE TAB ── */}
                         {activeTab === 'revenue' && (
                             <>
@@ -1544,35 +1490,69 @@ const AdminDashboard = () => {
                                     <p className="text-gray-600 mt-1">Manage in-app advertisements and partner commissions</p>
                                 </div>
 
+                                <div className="bg-white rounded-xl border shadow-sm mb-8">
+                                    <div className="flex items-center justify-between p-5 border-b">
+                                        <h3 className="font-semibold text-gray-800">Pending Recruiter Ad Requests</h3>
+                                        <Badge className="bg-orange-100 text-orange-700">
+                                            {adRequests.filter(r => r.status === 'pending').length} pending
+                                        </Badge>
+                                    </div>
+                                    <div className="divide-y divide-gray-100">
+                                        {adRequests.filter(r => r.status === 'pending').length === 0 ? (
+                                            <p className="p-5 text-sm text-gray-500">No pending ad requests.</p>
+                                        ) : adRequests.filter(r => r.status === 'pending').map(request => (
+                                            <div key={request.id} className="p-5 flex items-start justify-between gap-4">
+                                                <div>
+                                                    <p className="font-medium text-gray-900">{request.title}</p>
+                                                    <p className="text-sm text-gray-500">Type: {request.ad_type} • Placement: {request.placement}</p>
+                                                    <p className="text-sm text-gray-500">Location: {request.target_location} • Payment: {request.payment_reference}</p>
+                                                    <p className="text-xs text-gray-500 mt-1">Budget: {request.budget ? `$${request.budget}` : 'N/A'}</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button size="sm" onClick={() => updateAdRequestStatus(request.id, 'approved')} className="bg-green-600 hover:bg-green-700">
+                                                        <CheckCircle className="w-4 h-4 mr-1" /> Approve
+                                                    </Button>
+                                                    <Button size="sm" variant="destructive" onClick={() => updateAdRequestStatus(request.id, 'rejected')}>
+                                                        <XCircle className="w-4 h-4 mr-1" /> Reject
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 {/* Active Ads */}
                                 <div className="bg-white rounded-xl border shadow-sm mb-8">
                                     <div className="flex items-center justify-between p-5 border-b">
                                         <h3 className="font-semibold text-gray-800">Active Advertisements</h3>
-                                        <Button size="sm">
-                                            <Plus className="w-3 h-3 mr-1" /> New Ad
-                                        </Button>
+                                        <Badge className="bg-green-100 text-green-700">
+                                            {approvedAdRequests.length} live
+                                        </Badge>
                                     </div>
                                     <div className="divide-y divide-gray-100">
-                                        {[
-                                            { id: 'ad1', title: 'LinguaPro — IELTS Prep for Nurses', placement: 'Job Feed Top', impressions: 1240, active: true, end: '2026-12-31' },
-                                            { id: 'ad2', title: 'LicenseEase — Fast-Track Licensing', placement: 'Dashboard Banner', impressions: 870, active: true, end: '2026-12-31' }
-                                        ].map(ad => (
+                                        {approvedAdRequests.length === 0 ? (
+                                            <p className="p-5 text-sm text-gray-500">No approved ads yet. Approve a pending request to make it live.</p>
+                                        ) : approvedAdRequests.map(ad => (
                                             <div key={ad.id} className="flex items-center justify-between p-5">
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
-                                                        <Image className="w-6 h-6 text-gray-400" />
+                                                        {ad.ad_type === 'image' ? <Image className="w-6 h-6 text-gray-400" /> : <Video className="w-6 h-6 text-gray-400" />}
                                                     </div>
                                                     <div>
                                                         <p className="font-medium text-gray-900">{ad.title}</p>
-                                                        <p className="text-sm text-gray-500">Placement: <strong>{ad.placement}</strong> · {ad.impressions.toLocaleString()} impressions · Ends {ad.end}</p>
+                                                        <p className="text-sm text-gray-500">Placement: <strong>{ad.placement}</strong> · Type: {ad.ad_type} · Location: {ad.target_location}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <Badge className={ad.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}>
-                                                        {ad.active ? 'Active' : 'Paused'}
-                                                    </Badge>
-                                                    <Button size="sm" variant="outline">Edit</Button>
-                                                    <Button size="sm" variant="outline" className="text-red-600 border-red-200">Remove</Button>
+                                                    <Badge className="bg-green-100 text-green-700">Active</Badge>
+                                                    {ad.media_url && (
+                                                        <Button size="sm" variant="outline" onClick={() => window.open(ad.media_url, '_blank')}>
+                                                            <ExternalLink className="w-3 h-3 mr-1" /> Preview
+                                                        </Button>
+                                                    )}
+                                                    <Button size="sm" variant="outline" className="text-red-600 border-red-200" onClick={() => removeApprovedAd(ad.id)}>
+                                                        Remove
+                                                    </Button>
                                                 </div>
                                             </div>
                                         ))}
@@ -1617,13 +1597,14 @@ const AdminDashboard = () => {
 
             {/* Edit User Dialog */}
             <Dialog open={editUserDialog} onOpenChange={setEditUserDialog}>
-                <DialogContent>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>Edit User</DialogTitle>
-                        <DialogDescription>Update user information</DialogDescription>
+                        <DialogTitle>Edit User / Candidate Profile</DialogTitle>
+                        <DialogDescription>Update user information, candidate details, and recruiter visibility settings.</DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                        <div>
+                    <div className="space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
                             <Label htmlFor="full_name">Full Name</Label>
                             <Input
                                 id="full_name"
@@ -1631,7 +1612,7 @@ const AdminDashboard = () => {
                                 onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
                             />
                         </div>
-                        <div>
+                            <div>
                             <Label htmlFor="email">Email</Label>
                             <Input
                                 id="email"
@@ -1640,7 +1621,7 @@ const AdminDashboard = () => {
                                 onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                             />
                         </div>
-                        <div>
+                            <div>
                             <Label htmlFor="role">Role</Label>
                             <Select value={editForm.role} onValueChange={(value) => setEditForm({ ...editForm, role: value })}>
                                 <SelectTrigger>
@@ -1654,7 +1635,7 @@ const AdminDashboard = () => {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div>
+                            <div>
                             <Label htmlFor="phone">Phone</Label>
                             <Input
                                 id="phone"
@@ -1662,6 +1643,117 @@ const AdminDashboard = () => {
                                 onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                             />
                         </div>
+
+                            <div>
+                                <Label htmlFor="experience">Experience</Label>
+                                <Input
+                                    id="experience"
+                                    value={editForm.experience}
+                                    onChange={(e) => setEditForm({ ...editForm, experience: e.target.value })}
+                                    placeholder="e.g. 5 years ICU"
+                                />
+                            </div>
+
+                            <div>
+                                <Label htmlFor="video_status">Video Status</Label>
+                                <Select value={editForm.video_status} onValueChange={(value) => setEditForm({ ...editForm, video_status: value })}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="pending">Pending</SelectItem>
+                                        <SelectItem value="approved">Approved</SelectItem>
+                                        <SelectItem value="rejected">Rejected</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <Label htmlFor="bio">Bio</Label>
+                            <Textarea
+                                id="bio"
+                                value={editForm.bio}
+                                onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                                rows={4}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="cv_url">CV URL</Label>
+                                <Input
+                                    id="cv_url"
+                                    value={editForm.cv_url}
+                                    onChange={(e) => setEditForm({ ...editForm, cv_url: e.target.value })}
+                                    placeholder="https://..."
+                                />
+                                {editForm.cv_url && (
+                                    <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => window.open(editForm.cv_url, '_blank')}>
+                                        <FileText className="w-3 h-3 mr-1" /> View CV
+                                    </Button>
+                                )}
+                            </div>
+                            <div>
+                                <Label htmlFor="video_url">Video URL</Label>
+                                <Input
+                                    id="video_url"
+                                    value={editForm.video_url}
+                                    onChange={(e) => setEditForm({ ...editForm, video_url: e.target.value })}
+                                    placeholder="https://..."
+                                />
+                                {editForm.video_url && (
+                                    <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => window.open(editForm.video_url, '_blank')}>
+                                        <Video className="w-3 h-3 mr-1" /> View Video
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+
+                        {selectedUser && ['student', 'job_seeker'].includes(selectedUser.role) && (
+                            <>
+                                <div className="border rounded-lg p-4 space-y-3">
+                                    <h4 className="font-semibold text-gray-800">Recruiter Visibility Controls</h4>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                        {(['email', 'phone', 'cv', 'video', 'experience', 'bio'] as const).map(field => (
+                                            <Button
+                                                key={field}
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => toggleVisibilityField(selectedUser.id, field)}
+                                            >
+                                                {getVisibility(selectedUser.id)[field] ? <Eye className="w-3 h-3 mr-1" /> : <EyeOff className="w-3 h-3 mr-1" />}
+                                                {field}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="border rounded-lg p-4 space-y-3">
+                                    <h4 className="font-semibold text-gray-800">Uploaded Documents</h4>
+                                    {loadingApplicantDocuments ? (
+                                        <div className="text-sm text-gray-500">Loading documents...</div>
+                                    ) : applicantDocuments.length === 0 ? (
+                                        <div className="text-sm text-gray-500">No documents uploaded.</div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {applicantDocuments.map(doc => (
+                                                <div key={doc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                                    <div>
+                                                        <p className="text-sm font-medium text-gray-800">{doc.name || doc.type}</p>
+                                                        <p className="text-xs text-gray-500">Status: {doc.status}</p>
+                                                    </div>
+                                                    <Button type="button" size="sm" variant="outline" onClick={() => window.open(doc.url, '_blank')}>
+                                                        <Eye className="w-3 h-3 mr-1" /> Open
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setEditUserDialog(false)}>Cancel</Button>

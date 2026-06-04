@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Briefcase,
+  House,
   Search,
   Bookmark,
   User,
@@ -63,6 +64,7 @@ const Header: React.FC = () => {
   const isActive = (path: string) => location.pathname === path;
 
   const jobSeekerNav = [
+    { path: '/', label: 'Home', icon: House },
     { path: '/feed', label: 'Jobs', icon: Search },
     { path: '/saved', label: 'Saved', icon: Bookmark },
     { path: '/applications', label: 'Applications', icon: Briefcase },
@@ -70,6 +72,7 @@ const Header: React.FC = () => {
   ];
 
   const recruiterNav = [
+    { path: '/', label: 'Home', icon: House },
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/post-job', label: 'Post Job', icon: Plus },
     { path: '/applicants', label: 'Applicants', icon: User },
@@ -110,7 +113,7 @@ const Header: React.FC = () => {
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
               <Briefcase className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-bold text-xl text-foreground">NurseHub</span>
+            <span className="font-bold text-xl text-foreground">Medlink</span>
           </Link>
 
           {/* Navigation */}

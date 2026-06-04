@@ -6,6 +6,24 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Link } from 'react-router-dom';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Briefcase,
   Users,
@@ -15,7 +33,10 @@ import {
   Clock,
   ArrowRight,
   Building2,
-  Zap
+  Zap,
+  Megaphone,
+  FileImage,
+  Video
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import EmployerAddOns from '@/components/subscription/EmployerAddOns';
@@ -24,7 +45,20 @@ const RecruiterDashboard: React.FC = () => {
   const { currentUser } = useApp();
   const [recruiterJobs, setRecruiterJobs] = React.useState<any[]>([]);
   const [applications, setApplications] = React.useState<any[]>([]);
+  const [professionals, setProfessionals] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [adModalOpen, setAdModalOpen] = React.useState(false);
+  const [submittingAd, setSubmittingAd] = React.useState(false);
+  const [adForm, setAdForm] = React.useState({
+    title: '',
+    adType: 'image',
+    placement: 'dashboard_banner',
+    targetLocation: '',
+    paymentReference: '',
+    budget: ''
+  });
+  const [adDocFile, setAdDocFile] = React.useState<File | null>(null);
+  const [adMediaFile, setAdMediaFile] = React.useState<File | null>(null);
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -52,6 +86,16 @@ const RecruiterDashboard: React.FC = () => {
         if (appsError) throw appsError;
         setApplications(appsData || []);
 
+        // Fetch all professionals for recruiter quick browse
+        const { data: professionalsData, error: professionalsError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, role, bio, experience, avatar_url, created_at')
+          .in('role', ['job_seeker', 'student'])
+          .order('created_at', { ascending: false });
+
+        if (professionalsError) throw professionalsError;
+        setProfessionals(professionalsData || []);
+
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -61,6 +105,87 @@ const RecruiterDashboard: React.FC = () => {
 
     fetchData();
   }, []);
+
+  const handleSubmitAdRequest = async () => {
+    if (!adForm.title || !adForm.targetLocation || !adForm.paymentReference || !adMediaFile || !adDocFile) {
+      return;
+    }
+
+    setSubmittingAd(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      let documentUrl = '';
+      let mediaUrl = '';
+
+      try {
+        const docPath = `${user.id}/${Date.now()}_${adDocFile.name}`;
+        const mediaPath = `${user.id}/${Date.now()}_${adMediaFile.name}`;
+
+        const { data: docData, error: docError } = await supabase.storage
+          .from('ad-documents')
+          .upload(docPath, adDocFile, { upsert: true });
+        if (!docError && docData?.path) {
+          const { data: docPublic } = supabase.storage.from('ad-documents').getPublicUrl(docData.path);
+          documentUrl = docPublic.publicUrl;
+        }
+
+        const { data: mediaData, error: mediaError } = await supabase.storage
+          .from('ad-assets')
+          .upload(mediaPath, adMediaFile, { upsert: true });
+        if (!mediaError && mediaData?.path) {
+          const { data: mediaPublic } = supabase.storage.from('ad-assets').getPublicUrl(mediaData.path);
+          mediaUrl = mediaPublic.publicUrl;
+        }
+      } catch (uploadError) {
+        console.warn('Ad upload buckets unavailable, using filenames only:', uploadError);
+        documentUrl = adDocFile.name;
+        mediaUrl = adMediaFile.name;
+      }
+
+      const payload = {
+        recruiter_id: user.id,
+        title: adForm.title,
+        ad_type: adForm.adType,
+        placement: adForm.placement,
+        target_location: adForm.targetLocation,
+        payment_reference: adForm.paymentReference,
+        budget: adForm.budget ? Number(adForm.budget) : null,
+        document_url: documentUrl,
+        media_url: mediaUrl,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      };
+
+      // Persist in local fallback so admin can always review in UI.
+      const existing = JSON.parse(localStorage.getItem('mock_ad_requests') || '[]');
+      localStorage.setItem('mock_ad_requests', JSON.stringify([
+        { id: crypto.randomUUID(), ...payload },
+        ...existing
+      ]));
+
+      try {
+        await supabase.from('ad_requests').insert(payload);
+      } catch (dbError) {
+        console.warn('ad_requests table unavailable, local fallback in use:', dbError);
+      }
+
+      setAdModalOpen(false);
+      setAdDocFile(null);
+      setAdMediaFile(null);
+      setAdForm({
+        title: '',
+        adType: 'image',
+        placement: 'dashboard_banner',
+        targetLocation: '',
+        paymentReference: '',
+        budget: ''
+      });
+    } finally {
+      setSubmittingAd(false);
+    }
+  };
 
   const totalApplications = applications;
   const pendingApplications = applications.filter(a => a.status === 'pending');
@@ -113,12 +238,18 @@ const RecruiterDashboard: React.FC = () => {
               Here's an overview of your recruitment activity
             </p>
           </div>
-          <Button asChild size="lg">
-            <Link to="/post-job">
-              <Plus className="w-4 h-4" />
-              Post New Job
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="lg" onClick={() => setAdModalOpen(true)}>
+              <Megaphone className="w-4 h-4" />
+              Ads & Partners
+            </Button>
+            <Button asChild size="lg">
+              <Link to="/post-job">
+                <Plus className="w-4 h-4" />
+                Post New Job
+              </Link>
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -308,7 +439,168 @@ const RecruiterDashboard: React.FC = () => {
             <EmployerAddOns />
           </div>
         </div>
+
+        {/* Full Lists */}
+        <div className="grid lg:grid-cols-2 gap-6 mt-8">
+          <div className="card-elevated">
+            <div className="p-5 border-b border-border">
+              <h2 className="text-lg font-semibold">All Applied Candidates</h2>
+              <p className="text-sm text-muted-foreground mt-1">Complete list of candidates who applied to your jobs</p>
+            </div>
+            <div className="divide-y divide-border max-h-[420px] overflow-y-auto">
+              {applications.length === 0 ? (
+                <div className="p-6 text-sm text-muted-foreground">No applications yet.</div>
+              ) : (
+                applications.map((application) => (
+                  <div key={application.id} className="p-4">
+                    <p className="font-medium">{application.applicant?.full_name || 'Unknown Candidate'}</p>
+                    <p className="text-sm text-muted-foreground truncate">{application.applicant?.email || 'No email available'}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Applied for {application.job?.title || 'Unknown Job'}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="card-elevated">
+            <div className="p-5 border-b border-border">
+              <h2 className="text-lg font-semibold">All Professionals</h2>
+              <p className="text-sm text-muted-foreground mt-1">Browse registered professionals on the platform</p>
+            </div>
+            <div className="divide-y divide-border max-h-[420px] overflow-y-auto">
+              {professionals.length === 0 ? (
+                <div className="p-6 text-sm text-muted-foreground">No professionals found.</div>
+              ) : (
+                professionals.map((professional) => (
+                  <div key={professional.id} className="p-4">
+                    <p className="font-medium">{professional.full_name || 'Unnamed Professional'}</p>
+                    <p className="text-sm text-muted-foreground truncate">{professional.email || 'No email available'}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{professional.role === 'student' ? 'Student' : 'Professional'}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       </main>
+
+      <Dialog open={adModalOpen} onOpenChange={setAdModalOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Submit Ad / Partner Request</DialogTitle>
+            <DialogDescription>
+              Upload your poster or video ad, supporting documents, choose ad location, and submit payment details for admin approval.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="ad-title">Campaign Title</Label>
+              <Input
+                id="ad-title"
+                value={adForm.title}
+                onChange={(e) => setAdForm(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Hospital recruitment campaign"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Ad Type</Label>
+              <Select value={adForm.adType} onValueChange={(value) => setAdForm(prev => ({ ...prev, adType: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="image">Image</SelectItem>
+                  <SelectItem value="video">Video</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Ad Location</Label>
+              <Select value={adForm.placement} onValueChange={(value) => setAdForm(prev => ({ ...prev, placement: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select placement" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dashboard_banner">Dashboard Banner</SelectItem>
+                  <SelectItem value="job_feed_top">Job Feed Top</SelectItem>
+                  <SelectItem value="job_feed_sidebar">Job Feed Sidebar</SelectItem>
+                  <SelectItem value="profile_page">Profile Page</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="target-location">Target Location</Label>
+              <Input
+                id="target-location"
+                value={adForm.targetLocation}
+                onChange={(e) => setAdForm(prev => ({ ...prev, targetLocation: e.target.value }))}
+                placeholder="Dublin, Ireland"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="budget">Budget (USD)</Label>
+              <Input
+                id="budget"
+                type="number"
+                value={adForm.budget}
+                onChange={(e) => setAdForm(prev => ({ ...prev, budget: e.target.value }))}
+                placeholder="500"
+              />
+            </div>
+
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="payment-ref">Payment Reference</Label>
+              <Input
+                id="payment-ref"
+                value={adForm.paymentReference}
+                onChange={(e) => setAdForm(prev => ({ ...prev, paymentReference: e.target.value }))}
+                placeholder="PAY-2026-0001"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="doc-upload">Hospital/Partner Document</Label>
+              <Input
+                id="doc-upload"
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                onChange={(e) => setAdDocFile(e.target.files?.[0] || null)}
+              />
+              <p className="text-xs text-muted-foreground">Upload registration or supporting document.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="media-upload">Poster / Ad Asset</Label>
+              <Input
+                id="media-upload"
+                type="file"
+                accept={adForm.adType === 'video' ? 'video/*' : 'image/*'}
+                onChange={(e) => setAdMediaFile(e.target.files?.[0] || null)}
+              />
+              <p className="text-xs text-muted-foreground">Upload {adForm.adType === 'video' ? 'video ad' : 'poster image'}.</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border p-3 bg-secondary/40 flex items-start gap-2 text-sm">
+            {adForm.adType === 'video' ? <Video className="w-4 h-4 mt-0.5" /> : <FileImage className="w-4 h-4 mt-0.5" />}
+            <p>
+              After submission and payment, admin will review and approve your ad before it goes live.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleSubmitAdRequest} disabled={submittingAd}>
+              {submittingAd ? 'Submitting...' : 'Submit for Approval'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

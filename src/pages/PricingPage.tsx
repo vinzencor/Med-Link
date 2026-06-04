@@ -6,17 +6,15 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Briefcase, Users, ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { useApp } from '@/context/AppContext';
+import { subscriptionPlans } from '@/data/mockData';
 import PricingCard from '@/components/subscription/PricingCard';
-import { Loader2 } from 'lucide-react';
 
 const PricingPage: React.FC = () => {
-  const { plans, plansLoading } = useApp();
   const [selectedRole, setSelectedRole] = useState<'job_seeker' | 'recruiter'>('job_seeker');
   const [isYearly, setIsYearly] = useState(false);
   const navigate = useNavigate();
 
-  const currentPlans = selectedRole === 'recruiter' ? plans.recruiter : plans.jobSeeker;
+  const plans = selectedRole === 'recruiter' ? subscriptionPlans.recruiter : subscriptionPlans.jobSeeker;
 
   const getDisplayPrice = (price: number) => {
     if (isYearly) return Math.round(price * 10);
@@ -26,14 +24,6 @@ const PricingPage: React.FC = () => {
   const handleSelectPlan = () => {
     navigate('/get-started');
   };
-
-  if (plansLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -45,7 +35,7 @@ const PricingPage: React.FC = () => {
               <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
                 <Briefcase className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-bold text-xl">NurseHub</span>
+              <span className="font-bold text-xl">Medlink</span>
             </Link>
             <div className="flex items-center gap-3">
               <Button variant="ghost" asChild>
@@ -103,7 +93,7 @@ const PricingPage: React.FC = () => {
 
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8 mb-16">
-          {currentPlans.map((plan: any) => (
+          {plans.map((plan: any) => (
             <PricingCard
               key={plan.id}
               name={plan.name}
